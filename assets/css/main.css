@@ -1,12 +1,13 @@
 /* ============================================================
    FIL: assets/css/main.css  (HEL FIL)
+   PATCH: HELP-MODAL-CSS-01 — Modal polish + små UI-förbättringar
    PROJEKT: Enkätmätningar — Matlådor (GitHub Pages)
-   VERSION: 0.1.0 (MVP)
+   VERSION: 0.1.1
 
    Mål:
    - Enkel, modern UI-bas (utan externa libs)
    - Återanvändbara kort, grid, nav, status-rutor
-   - Lätt att felsöka: tydliga sektioner + kommentarer
+   - NYTT: Modal/overlay-stil för hjälprutor + små UI-polish
 
    Policy:
    - UI-only
@@ -45,6 +46,17 @@ select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid rgba(59, 130, 246, 0.9); /* blå focus */
   outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* NYTT: <code> i texter (hjälpmodaler) */
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.95em;
+  color: rgba(226, 232, 240, 0.95);
+  background: rgba(2, 6, 23, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 2px 6px;
   border-radius: 10px;
 }
 
@@ -141,6 +153,11 @@ textarea:focus-visible {
   border: 1px solid rgba(148, 163, 184, 0.12);
   background: rgba(15, 23, 42, 0.40);
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+/* NYTT: gör nav__link-button (help) klickvänlig */
+.nav__link[type="button"] {
+  cursor: pointer;
 }
 
 .nav__link:hover {
@@ -333,7 +350,30 @@ textarea:focus-visible {
 
 
 /* ============================================================
-   BLOCK 8 — Responsivt (mobil)
+   BLOCK 8 — Modal polish (för hjälpmodaler)
+   OBS: Vi använder mest inline-style i HTML för att inte kräva
+        omstrukturering, men här ger vi lite extra “polish”.
+============================================================ */
+
+/* Mjukare overlay om någon väljer att återanvända en klass senare */
+.modalOverlay {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+/* För listor i hjälpkort: bättre spacing */
+.card ol,
+.card ul {
+  line-height: 1.55;
+}
+
+.card li {
+  margin: 4px 0;
+}
+
+
+/* ============================================================
+   BLOCK 9 — Responsivt (mobil)
 ============================================================ */
 
 @media (max-width: 860px) {
