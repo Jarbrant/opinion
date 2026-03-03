@@ -1,12 +1,14 @@
 <!-- ============================================================
      FIL: pages/forms.html  (HEL FIL)
+     PATCH: HELP-MODAL-01 — Hjälpknapp + modal (Formulär)
      PROJEKT: Enkätmätningar — Matlådor (GitHub Pages)
-     VERSION: 0.1.0 (MVP)
+     VERSION: 0.1.1
 
      Syfte:
      - Visa formulärdefinition (frågor + svarsalternativ) från /data/
      - Sätta den som "aktiv" i localStorage (via storage.js)
      - Visa tydlig status + fel (fail-closed)
+     - NYTT: ❓ Hjälp-knapp + enkel modal med instruktioner
 
      Policy:
      - UI-only
@@ -27,7 +29,7 @@
 
 <body>
   <!-- ==========================================================
-       BLOCK 2 — Toppbar / Navigation
+       BLOCK 2 — Toppbar / Navigation + Hjälp
   =========================================================== -->
   <header class="topbar">
     <div class="topbar__inner">
@@ -41,9 +43,125 @@
         <a class="nav__link" href="../index.html">Start</a>
         <a class="nav__link" href="./measure.html">Ny mätning</a>
         <a class="nav__link" href="./report.html">Rapport</a>
+
+        <!-- HOOK: help-button -->
+        <button
+          id="helpBtn"
+          class="nav__link"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="helpModal"
+          aria-expanded="false"
+          title="Hjälp"
+          style="cursor:pointer;"
+        >
+          ❓ Hjälp
+        </button>
       </nav>
     </div>
   </header>
+
+  <!-- ==========================================================
+       BLOCK 2.5 — Hjälpmodal (hidden by default)
+       XSS-safe: innehållet är statisk text i HTML.
+  =========================================================== -->
+  <div
+    id="helpModal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="helpTitle"
+    aria-hidden="true"
+    style="display:none;"
+  >
+    <!-- Overlay -->
+    <div
+      id="helpOverlay"
+      style="
+        position:fixed; inset:0;
+        background: rgba(0,0,0,0.55);
+        z-index: 1000;
+      "
+    ></div>
+
+    <!-- Dialog -->
+    <div
+      style="
+        position:fixed;
+        inset: 0;
+        z-index: 1001;
+        display:flex;
+        align-items:flex-start;
+        justify-content:center;
+        padding: 18px;
+        overflow:auto;
+      "
+    >
+      <div
+        class="card"
+        style="
+          width: min(860px, calc(100% - 12px));
+          margin-top: 10vh;
+        "
+      >
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <div id="helpTitle" class="h2" style="margin-bottom:6px;">Hjälp: Formulär</div>
+            <p class="muted small" style="margin:0;">
+              Syfte: Ladda formuläret från <code>/data</code> och aktivera det så du kan registrera mätningar.
+            </p>
+          </div>
+
+          <button
+            id="helpCloseBtn"
+            class="btn"
+            type="button"
+            aria-label="Stäng hjälp"
+            style="padding:8px 10px;"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style="margin-top: 14px; display:grid; gap: 12px;">
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Gör så här</div>
+            <ol class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li>Klicka <b>“Läs formulär från /data”</b>.</li>
+              <li>Kontrollera att frågor och svarsalternativ ser rätt ut.</li>
+              <li>Klicka <b>“Aktivera formulär”</b>.</li>
+            </ol>
+          </div>
+
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Vanliga fel</div>
+            <ul class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li><b>HTTP 404</b> när du läser formulär → filen saknas i <code>/data</code> eller fel sökväg.</li>
+              <li><b>Inget aktivt formulär</b> → klicka “Läs formulär” och sedan “Aktivera formulär”.</li>
+              <li><b>Fel format</b> → formulärfilen måste ha <code>id</code> och <code>questions[]</code>.</li>
+            </ul>
+          </div>
+
+          <div class="muted small">
+            Tips: Du kan stänga hjälpen med <b>ESC</b> eller genom att klicka utanför rutan.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ==========================================================
        BLOCK 3 — Main
@@ -119,6 +237,41 @@
        Vi håller all rendering XSS-safe (textContent).
   =========================================================== -->
   <script type="module">
+    /* ==========================================================
+       BLOCK 4.0 — Hjälpmodal: open/close (UI-only)
+    =========================================================== */
+    const helpBtn = document.getElementById("helpBtn");
+    const helpModal = document.getElementById("helpModal");
+    const helpOverlay = document.getElementById("helpOverlay");
+    const helpCloseBtn = document.getElementById("helpCloseBtn");
+
+    function openHelp() {
+      if (!helpBtn || !helpModal) return;
+      helpModal.style.display = "block";
+      helpModal.setAttribute("aria-hidden", "false");
+      helpBtn.setAttribute("aria-expanded", "true");
+      // Fokus på stäng-knappen för enkel navigation
+      if (helpCloseBtn) helpCloseBtn.focus();
+    }
+
+    function closeHelp() {
+      if (!helpBtn || !helpModal) return;
+      helpModal.style.display = "none";
+      helpModal.setAttribute("aria-hidden", "true");
+      helpBtn.setAttribute("aria-expanded", "false");
+      // Tillbaka fokus till help-knappen
+      helpBtn.focus();
+    }
+
+    function onHelpKey(e) {
+      if (e.key === "Escape") closeHelp();
+    }
+
+    if (helpBtn) helpBtn.addEventListener("click", openHelp);
+    if (helpCloseBtn) helpCloseBtn.addEventListener("click", closeHelp);
+    if (helpOverlay) helpOverlay.addEventListener("click", closeHelp);
+    document.addEventListener("keydown", onHelpKey);
+
     /* ==========================================================
        BLOCK 4.1 — Imports
     =========================================================== */
