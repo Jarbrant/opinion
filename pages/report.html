@@ -1,7 +1,8 @@
 <!-- ============================================================
      FIL: pages/report.html  (HEL FIL)
+     PATCH: HELP-MODAL-01 — Hjälpknapp + modal (Rapport)
      PROJEKT: Enkätmätningar — Matlådor (GitHub Pages)
-     VERSION: 0.1.0 (MVP)
+     VERSION: 0.1.1
 
      Syfte:
      - Visa rapport med:
@@ -9,6 +10,7 @@
          * Per fråga: staplar (counts) + positiv% + diff (pp)
          * Per fråga: trendlinje (positiv% över tid)
      - Fail-closed: om data saknas/korrupt -> tydliga fel
+     - NYTT: ❓ Hjälp-knapp + enkel modal med instruktioner
 
      Policy:
      - UI-only
@@ -29,7 +31,7 @@
 
 <body>
   <!-- ==========================================================
-       BLOCK 2 — Toppbar / Navigation
+       BLOCK 2 — Toppbar / Navigation + Hjälp
   =========================================================== -->
   <header class="topbar">
     <div class="topbar__inner">
@@ -43,9 +45,125 @@
         <a class="nav__link" href="../index.html">Start</a>
         <a class="nav__link" href="./forms.html">Formulär</a>
         <a class="nav__link" href="./measure.html">Ny mätning</a>
+
+        <!-- HOOK: help-button -->
+        <button
+          id="helpBtn"
+          class="nav__link"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="helpModal"
+          aria-expanded="false"
+          title="Hjälp"
+          style="cursor:pointer;"
+        >
+          ❓ Hjälp
+        </button>
       </nav>
     </div>
   </header>
+
+  <!-- ==========================================================
+       BLOCK 2.5 — Hjälpmodal (hidden by default)
+       XSS-safe: innehållet är statisk text i HTML.
+  =========================================================== -->
+  <div
+    id="helpModal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="helpTitle"
+    aria-hidden="true"
+    style="display:none;"
+  >
+    <!-- Overlay -->
+    <div
+      id="helpOverlay"
+      style="
+        position:fixed; inset:0;
+        background: rgba(0,0,0,0.55);
+        z-index: 1000;
+      "
+    ></div>
+
+    <!-- Dialog -->
+    <div
+      style="
+        position:fixed;
+        inset: 0;
+        z-index: 1001;
+        display:flex;
+        align-items:flex-start;
+        justify-content:center;
+        padding: 18px;
+        overflow:auto;
+      "
+    >
+      <div
+        class="card"
+        style="
+          width: min(860px, calc(100% - 12px));
+          margin-top: 10vh;
+        "
+      >
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <div id="helpTitle" class="h2" style="margin-bottom:6px;">Hjälp: Rapport</div>
+            <p class="muted small" style="margin:0;">
+              Syfte: Se grafer och utveckling från föregående mätning (positiv andel och trender).
+            </p>
+          </div>
+
+          <button
+            id="helpCloseBtn"
+            class="btn"
+            type="button"
+            aria-label="Stäng hjälp"
+            style="padding:8px 10px;"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style="margin-top: 14px; display:grid; gap: 12px;">
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Så läser du rapporten</div>
+            <ol class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li>Titta i <b>Översikt</b>: senaste datum, föregående datum och total positiv andel.</li>
+              <li>Skrolla ner: <b>Per fråga</b> visar staplar (antal per svar) + trend över tid.</li>
+              <li>Om du nyss sparat en mätning: klicka <b>“Ladda om rapport”</b>.</li>
+            </ol>
+          </div>
+
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Vanliga fel</div>
+            <ul class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li><b>Inget aktivt formulär</b> → gå till “Formulär” och aktivera.</li>
+              <li><b>Inga mätningar</b> → gå till “Ny mätning” och spara minst en mätning.</li>
+              <li><b>Utveckling saknas</b> → du behöver minst 2 mätningar för jämförelse.</li>
+            </ul>
+          </div>
+
+          <div class="muted small">
+            Tips: Du kan stänga hjälpen med <b>ESC</b> eller genom att klicka utanför rutan.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ==========================================================
        BLOCK 3 — Main
@@ -125,6 +243,39 @@
   =========================================================== -->
   <script type="module">
     /* ==========================================================
+       BLOCK 4.0 — Hjälpmodal: open/close (UI-only)
+    =========================================================== */
+    const helpBtn = document.getElementById("helpBtn");
+    const helpModal = document.getElementById("helpModal");
+    const helpOverlay = document.getElementById("helpOverlay");
+    const helpCloseBtn = document.getElementById("helpCloseBtn");
+
+    function openHelp() {
+      if (!helpBtn || !helpModal) return;
+      helpModal.style.display = "block";
+      helpModal.setAttribute("aria-hidden", "false");
+      helpBtn.setAttribute("aria-expanded", "true");
+      if (helpCloseBtn) helpCloseBtn.focus();
+    }
+
+    function closeHelp() {
+      if (!helpBtn || !helpModal) return;
+      helpModal.style.display = "none";
+      helpModal.setAttribute("aria-hidden", "true");
+      helpBtn.setAttribute("aria-expanded", "false");
+      helpBtn.focus();
+    }
+
+    function onHelpKey(e) {
+      if (e.key === "Escape") closeHelp();
+    }
+
+    if (helpBtn) helpBtn.addEventListener("click", openHelp);
+    if (helpCloseBtn) helpCloseBtn.addEventListener("click", closeHelp);
+    if (helpOverlay) helpOverlay.addEventListener("click", closeHelp);
+    document.addEventListener("keydown", onHelpKey);
+
+    /* ==========================================================
        BLOCK 4.1 — Imports
     =========================================================== */
     import { getActiveForm, listMeasurements, getLatestMeasurement, getPreviousMeasurement } from "../assets/js/storage.js";
@@ -158,7 +309,6 @@
     }
 
     function pp(n) {
-      // percentage points formatting
       if (!Number.isFinite(n)) return "—";
       const sign = n > 0 ? "+" : "";
       return `${sign}${n.toFixed(1)} pp`;
@@ -179,7 +329,6 @@
 ============================================================ */
 
     function getQuestionCounts(measurement, q) {
-      // Returnerar counts[] i samma ordning som q.options
       const out = [];
       const ans = measurement?.answers?.[q.id];
       if (!ans || typeof ans !== "object") {
@@ -192,7 +341,6 @@
     }
 
     function calcPositivePctForQuestion(measurement, q) {
-      // Fail-closed: om inga options/positiveOptions -> NaN
       if (!measurement || !q || !Array.isArray(q.options) || q.options.length === 0) return NaN;
       if (!Array.isArray(q.positiveOptions) || q.positiveOptions.length === 0) return NaN;
 
@@ -213,7 +361,6 @@
     }
 
     function calcTotalPositivePct(measurement, form) {
-      // Total = genomsnitt av frågor som har positiv andel beräkningsbar
       if (!measurement || !form || !Array.isArray(form.questions)) return NaN;
 
       const vals = [];
@@ -229,7 +376,6 @@
     }
 
     function countFilledComments(measurement, form) {
-      // MVP: räkna hur många free_text eller followup-fält som har text
       if (!measurement || !form || !Array.isArray(form.questions)) return 0;
       const f = measurement.followups || {};
       let count = 0;
@@ -238,7 +384,6 @@
         if (!q || typeof q.id !== "string") return;
         const arr = f[q.id];
         if (Array.isArray(arr)) {
-          // räkna antal icke-tomma texter
           arr.forEach((t) => {
             if (String(t || "").trim()) count += 1;
           });
@@ -249,7 +394,6 @@
     }
 
     function buildTrendPointsForQuestion(formId, qid, form, measurements) {
-      // Returnerar [{date, value}] där value=positiv%
       const q = form.questions.find((x) => x && x.id === qid);
       if (!q) return [];
 
@@ -309,7 +453,6 @@
         return;
       }
 
-      // Wrapper: cards
       const wrap = document.createElement("div");
       wrap.style.display = "grid";
       wrap.style.gridTemplateColumns = "1fr";
@@ -337,7 +480,6 @@
         meta.textContent = `id: ${q.id}`;
         card.appendChild(meta);
 
-        // Fritext: visa bara antal
         if (q.type === "free_text") {
           const c = document.createElement("div");
           c.className = "muted";
@@ -351,7 +493,6 @@
           return;
         }
 
-        // Counts + bars
         const options = Array.isArray(q.options) ? q.options : [];
         const counts = getQuestionCounts(latest, q);
 
@@ -361,7 +502,6 @@
         barCanvas.style.width = "100%";
         barCanvas.style.maxWidth = "720px";
 
-        // Infotext: positiv% + diff
         const nowP = calcPositivePctForQuestion(latest, q);
         const prevP = calcPositivePctForQuestion(previous, q);
 
@@ -382,7 +522,6 @@
         card.appendChild(barCanvas);
         card.appendChild(info);
 
-        // Trendline
         const trendPoints = buildTrendPointsForQuestion(form.id, q.id, form, measurementsAll);
 
         const trendCanvas = document.createElement("canvas");
@@ -393,15 +532,12 @@
 
         card.appendChild(trendCanvas);
 
-        // Rita efter att canvases finns i DOM
-        // Staplar
         drawBarCounts(barCanvas, options, counts, {
           width: Math.min(720, Math.max(520, elReportWrap.clientWidth - 40)),
           height: 230,
           title: "Antal per svar"
         });
 
-        // Trend (bara om det finns minst 2 punkter, annars rita ändå men det blir en punkt)
         drawTrendLine(trendCanvas, trendPoints, {
           width: Math.min(720, Math.max(520, elReportWrap.clientWidth - 40)),
           height: 180,
@@ -481,8 +617,6 @@
 ============================================================ */
 
     elBtnReload.addEventListener("click", loadReport);
-
-    // Auto-load
     loadReport();
   </script>
 </body>
