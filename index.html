@@ -1,8 +1,8 @@
 <!-- ============================================================
      FIL: index.html  (HEL FIL)
-     PATCH: UI-MODERN-INDEX-01 — Modernare startsida med tydliga boxar/containers
+     PATCH: UI-MODERN-INDEX-02 — Hjälpknapp + städa bort PROCESS-container
      PROJEKT: Frågeformulär + Mätningar + Grafer (GitHub Pages)
-     VERSION: 0.1.1
+     VERSION: 0.1.2
 
      POLICY:
      - UI-only (GitHub Pages)
@@ -29,7 +29,7 @@
 
 <body>
   <!-- ==========================================================
-       BLOCK 3 — Toppbar / Navigation
+       BLOCK 3 — Toppbar / Navigation + Hjälp
   =========================================================== -->
   <header class="topbar">
     <div class="topbar__inner">
@@ -44,9 +44,124 @@
         <a class="nav__link" href="./pages/forms.html">Formulär</a>
         <a class="nav__link" href="./pages/measure.html">Ny mätning</a>
         <a class="nav__link" href="./pages/report.html">Rapport</a>
+
+        <!-- HOOK: help-button -->
+        <button
+          id="helpBtn"
+          class="nav__link"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="helpModal"
+          aria-expanded="false"
+          title="Hjälp"
+        >
+          ❓ Hjälp
+        </button>
       </nav>
     </div>
   </header>
+
+  <!-- ==========================================================
+       BLOCK 3.5 — Hjälpmodal (hidden by default)
+       XSS-safe: innehållet är statisk text i HTML.
+  =========================================================== -->
+  <div
+    id="helpModal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="helpTitle"
+    aria-hidden="true"
+    style="display:none;"
+  >
+    <!-- Overlay -->
+    <div
+      id="helpOverlay"
+      style="
+        position:fixed; inset:0;
+        background: rgba(0,0,0,0.55);
+        z-index: 1000;
+      "
+    ></div>
+
+    <!-- Dialog -->
+    <div
+      style="
+        position:fixed;
+        inset: 0;
+        z-index: 1001;
+        display:flex;
+        align-items:flex-start;
+        justify-content:center;
+        padding: 18px;
+        overflow:auto;
+      "
+    >
+      <div
+        class="card"
+        style="
+          width: min(860px, calc(100% - 12px));
+          margin-top: 10vh;
+        "
+      >
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <div id="helpTitle" class="h2" style="margin-bottom:6px;">Hjälp: Start (Dashboard)</div>
+            <p class="muted small" style="margin:0;">
+              Syfte: Överblick över formulär och mätningar. Härifrån går du till rätt vy.
+            </p>
+          </div>
+
+          <button
+            id="helpCloseBtn"
+            class="btn"
+            type="button"
+            aria-label="Stäng hjälp"
+            style="padding:8px 10px;"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style="margin-top: 14px; display:grid; gap: 12px;">
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Gör så här</div>
+            <ol class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li>Gå till <b>Formulär</b> och aktivera (första gången).</li>
+              <li>Gå till <b>Ny mätning</b> och spara minst 1 mätning.</li>
+              <li>Gå till <b>Rapport</b> för grafer och jämförelse.</li>
+            </ol>
+          </div>
+
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Vanliga fel</div>
+            <ul class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li><b>“Inget aktivt formulär”</b> → aktivera i <b>Formulär</b>.</li>
+              <li><b>“Mätningar sparade: 0”</b> → skapa en mätning i <b>Ny mätning</b>.</li>
+              <li><b>Jämförelse saknas</b> → du behöver minst 2 mätningar.</li>
+            </ul>
+          </div>
+
+          <div class="muted small">
+            Tips: Du kan stänga hjälpen med <b>ESC</b> eller genom att klicka utanför rutan.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ==========================================================
        BLOCK 4 — Main: Modernare “Dashboard”-layout (containers)
@@ -57,6 +172,7 @@
          BLOCK 4.1 — Dashboard Grid (2 kolumner när plats finns)
     ========================================================= -->
     <div
+      id="dashGrid"
       style="
         display:grid;
         grid-template-columns: 1.2fr 0.8fr;
@@ -76,7 +192,6 @@
             </p>
           </div>
 
-          <!-- Badge (inline, så vi slipper CSS-ändring) -->
           <span
             class="muted small"
             style="
@@ -103,7 +218,6 @@
               gap: 10px;
             "
           >
-            <!-- Mini-boxar för att förtydliga vad som finns -->
             <div
               style="
                 border:1px solid rgba(148,163,184,0.14);
@@ -150,8 +264,7 @@
       </section>
 
       <!-- ======================================================
-           CONTAINER B — Status (tydlig “vad den är till för”)
-           Viktigt: statusBox-id måste finnas (JS använder den).
+           CONTAINER B — Status (JS använder statusBox-id)
       ======================================================= -->
       <section class="card" aria-label="Status">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
@@ -191,102 +304,9 @@
     </div>
 
     <!-- ========================================================
-         BLOCK 4.2 — Arbetsflöde + Snabblänkar (separat rad)
+         BLOCK 4.2 — Snabblänkar (PROCESS-container bortstädad)
     ========================================================= -->
-    <div
-      style="
-        display:grid;
-        grid-template-columns: 1fr;
-        gap: 14px;
-        margin-top: 14px;
-      "
-    >
-      <!-- ======================================================
-           CONTAINER C — Arbetsflöde (vad gör man i vilken ordning)
-      ======================================================= -->
-      <section class="card" aria-label="Arbetsflöde">
-        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
-          <div>
-            <h2 class="h2" style="margin-bottom:6px;">Arbetsflöde</h2>
-            <p class="muted small" style="margin:0;">
-              Gör alltid i denna ordning för att få jämförbar statistik.
-            </p>
-          </div>
-
-          <span
-            class="muted small"
-            style="
-              display:inline-flex;
-              align-items:center;
-              gap:6px;
-              padding:6px 10px;
-              border-radius:999px;
-              border:1px solid rgba(148,163,184,0.18);
-              background: rgba(2,6,23,0.35);
-              white-space:nowrap;
-            "
-            title="Container-typ"
-          >
-            PROCESS
-          </span>
-        </div>
-
-        <!-- Steg-boxar -->
-        <div
-          style="
-            margin-top: 12px;
-            display:grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
-          "
-        >
-          <div
-            style="
-              border:1px solid rgba(148,163,184,0.14);
-              background: rgba(2,6,23,0.35);
-              border-radius:16px;
-              padding:12px;
-            "
-          >
-            <div style="font-weight:800; color:#e2e8f0;">1) Formulär</div>
-            <div class="muted small" style="margin-top:4px;">
-              Säkerställ att rätt frågor/svar används.
-            </div>
-          </div>
-
-          <div
-            style="
-              border:1px solid rgba(148,163,184,0.14);
-              background: rgba(2,6,23,0.35);
-              border-radius:16px;
-              padding:12px;
-            "
-          >
-            <div style="font-weight:800; color:#e2e8f0;">2) Ny mätning</div>
-            <div class="muted small" style="margin-top:4px;">
-              Skriv datum + antal per svarsalternativ.
-            </div>
-          </div>
-
-          <div
-            style="
-              border:1px solid rgba(148,163,184,0.14);
-              background: rgba(2,6,23,0.35);
-              border-radius:16px;
-              padding:12px;
-            "
-          >
-            <div style="font-weight:800; color:#e2e8f0;">3) Rapport</div>
-            <div class="muted small" style="margin-top:4px;">
-              Se grafer + “utveckling från förra mätningen”.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ======================================================
-           CONTAINER D — Snabblänkar (tiles)
-      ======================================================= -->
+    <div style="margin-top: 14px;">
       <section class="card" aria-label="Snabblänkar">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
           <div>
@@ -314,7 +334,6 @@
           </span>
         </div>
 
-        <!-- Behåller dina befintliga tiles -->
         <div class="grid3" style="margin-top: 12px;">
           <a class="tile" href="./pages/forms.html" aria-label="Gå till Formulär">
             <div class="tile__title">Formulär</div>
@@ -335,20 +354,19 @@
     </div>
 
     <!-- ========================================================
-         BLOCK 4.3 — Responsiv “fail-safe” (utan CSS patch)
+         BLOCK 4.3 — Responsiv layout (utan CSS patch)
          Om skärmen är smal: gör grid till 1 kolumn.
-         OBS: Vi använder ett minimalt script för layout, ingen data-logik.
     ========================================================= -->
     <script>
       (function responsiveIndexGrid() {
         const mq = window.matchMedia('(max-width: 860px)');
-        const grids = document.querySelectorAll('main.container > div[style*="grid-template-columns: 1.2fr 0.8fr"]');
+        const g = document.getElementById('dashGrid');
+
         function apply() {
-          grids.forEach((g) => {
-            if (!g || !g.style) return;
-            g.style.gridTemplateColumns = mq.matches ? '1fr' : '1.2fr 0.8fr';
-          });
+          if (!g || !g.style) return;
+          g.style.gridTemplateColumns = mq.matches ? '1fr' : '1.2fr 0.8fr';
         }
+
         if (mq && mq.addEventListener) mq.addEventListener('change', apply);
         apply();
       })();
@@ -365,8 +383,44 @@
   </footer>
 
   <!-- ==========================================================
-       BLOCK 6 — Minimal JS (endast status på startsidan)
-       OBS: Riktig logik finns i assets/js/storage.js på övriga sidor.
+       BLOCK 6 — Hjälpmodal: open/close (UI-only)
+  =========================================================== -->
+  <script>
+    (function helpModalIndex() {
+      const helpBtn = document.getElementById("helpBtn");
+      const helpModal = document.getElementById("helpModal");
+      const helpOverlay = document.getElementById("helpOverlay");
+      const helpCloseBtn = document.getElementById("helpCloseBtn");
+
+      function openHelp() {
+        if (!helpBtn || !helpModal) return;
+        helpModal.style.display = "block";
+        helpModal.setAttribute("aria-hidden", "false");
+        helpBtn.setAttribute("aria-expanded", "true");
+        if (helpCloseBtn) helpCloseBtn.focus();
+      }
+
+      function closeHelp() {
+        if (!helpBtn || !helpModal) return;
+        helpModal.style.display = "none";
+        helpModal.setAttribute("aria-hidden", "true");
+        helpBtn.setAttribute("aria-expanded", "false");
+        helpBtn.focus();
+      }
+
+      function onHelpKey(e) {
+        if (e.key === "Escape") closeHelp();
+      }
+
+      if (helpBtn) helpBtn.addEventListener("click", openHelp);
+      if (helpCloseBtn) helpCloseBtn.addEventListener("click", closeHelp);
+      if (helpOverlay) helpOverlay.addEventListener("click", closeHelp);
+      document.addEventListener("keydown", onHelpKey);
+    })();
+  </script>
+
+  <!-- ==========================================================
+       BLOCK 7 — Minimal JS (endast status på startsidan)
   =========================================================== -->
   <script>
     // HOOK: statusBox
@@ -374,7 +428,6 @@
       const box = document.getElementById('statusBox');
       if (!box) return;
 
-      // MVP-keys (standard i storage.js)
       const FORM_KEY = 'SURVEY_FORM_ACTIVE_V1';
       const MEAS_KEY = 'SURVEY_MEASUREMENTS_V1';
 
@@ -387,14 +440,12 @@
           const arr = JSON.parse(measurementsRaw);
           if (Array.isArray(arr)) mCount = arr.length;
         } catch (e) {
-          // Fail-closed i status: visa tydligt om datan är trasig
           box.textContent = 'Status: Hittade mätningar men datan verkar vara korrupt (JSON-fel).';
           box.classList.add('statusBox--warn');
           return;
         }
       }
 
-      // Render (XSS-safe: textContent)
       if (!hasForm && mCount === 0) {
         box.textContent = 'Status: Inget formulär och inga mätningar ännu. Börja i “Formulär”.';
         box.classList.add('statusBox--info');
