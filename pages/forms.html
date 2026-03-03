@@ -1,1 +1,342 @@
+<!-- ============================================================
+     FIL: pages/forms.html  (HEL FIL)
+     PROJEKT: Enkätmätningar — Matlådor (GitHub Pages)
+     VERSION: 0.1.0 (MVP)
 
+     Syfte:
+     - Visa formulärdefinition (frågor + svarsalternativ) från /data/
+     - Sätta den som "aktiv" i localStorage (via storage.js)
+     - Visa tydlig status + fel (fail-closed)
+
+     Policy:
+     - UI-only
+     - XSS-safe: all rendering sker via textContent i JS
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <!-- ==========================================================
+       BLOCK 1 — Meta + CSS
+  =========================================================== -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Formulär — Enkätmätningar</title>
+  <meta name="description" content="Visa och aktivera formulärdefinitionen (Matlådor)." />
+  <link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+
+<body>
+  <!-- ==========================================================
+       BLOCK 2 — Toppbar / Navigation
+  =========================================================== -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <span class="brand__dot" aria-hidden="true"></span>
+        <span class="brand__title">Enkätmätningar</span>
+        <span class="brand__muted">Formulär</span>
+      </div>
+
+      <nav class="nav" aria-label="Huvudmeny">
+        <a class="nav__link" href="../index.html">Start</a>
+        <a class="nav__link" href="./measure.html">Ny mätning</a>
+        <a class="nav__link" href="./report.html">Rapport</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==========================================================
+       BLOCK 3 — Main
+  =========================================================== -->
+  <main class="container">
+    <!-- ========================================================
+         BLOCK 3.1 — Status + Actions
+    ========================================================= -->
+    <section class="card">
+      <h1 class="h1">Formulär</h1>
+      <p class="muted">
+        Den här sidan läser formulärdefinitionen från <code>/data/</code> och låter dig aktivera den.
+        När formuläret är aktivt kan du registrera mätningar.
+      </p>
+
+      <div class="btnRow" style="margin-top: 12px;">
+        <!-- HOOK: buttons -->
+        <button id="btnLoad" class="btn btn--primary" type="button">Läs formulär från /data</button>
+        <button id="btnActivate" class="btn" type="button" disabled>Aktivera formulär</button>
+        <button id="btnClear" class="btn btn--danger" type="button">Rensa aktivt formulär</button>
+      </div>
+
+      <div id="statusBox" class="statusBox" role="status" aria-live="polite" style="margin-top: 12px;">
+        Status: …
+      </div>
+
+      <p class="muted small" style="margin-top: 10px;">
+        Tips: Första gången: klicka “Läs formulär”, sedan “Aktivera formulär”.
+      </p>
+    </section>
+
+    <!-- ========================================================
+         BLOCK 3.2 — Formulär-info
+    ========================================================= -->
+    <section class="card">
+      <h2 class="h2">Formulärinfo</h2>
+
+      <div class="fieldRow">
+        <div class="label">Titel</div>
+        <div>
+          <div id="formTitle" class="muted">—</div>
+          <div class="help">Visas här när formuläret är laddat.</div>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">ID</div>
+        <div>
+          <div id="formId" class="muted">—</div>
+          <div class="help">Används för att koppla mätningar till rätt formulär.</div>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">Version</div>
+        <div>
+          <div id="formVersion" class="muted">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         BLOCK 3.3 — Frågor (renderas av JS)
+    ========================================================= -->
+    <section class="card">
+      <h2 class="h2">Frågor</h2>
+      <div id="questionsWrap" class="muted">Ladda formuläret för att se frågor.</div>
+    </section>
+  </main>
+
+  <!-- ==========================================================
+       BLOCK 4 — Script
+       Vi håller all rendering XSS-safe (textContent).
+  =========================================================== -->
+  <script type="module">
+    /* ==========================================================
+       BLOCK 4.1 — Imports
+    =========================================================== */
+    import { getActiveForm, setActiveForm, clearActiveForm } from "../assets/js/storage.js";
+
+    /* ==========================================================
+       BLOCK 4.2 — DOM hooks
+    =========================================================== */
+    const $ = (sel) => document.querySelector(sel);
+
+    const elBtnLoad = $("#btnLoad");
+    const elBtnActivate = $("#btnActivate");
+    const elBtnClear = $("#btnClear");
+
+    const elStatus = $("#statusBox");
+    const elFormTitle = $("#formTitle");
+    const elFormId = $("#formId");
+    const elFormVersion = $("#formVersion");
+    const elQuestionsWrap = $("#questionsWrap");
+
+    /* ==========================================================
+       BLOCK 4.3 — State (in-memory)
+    =========================================================== */
+    let loadedForm = null; // HOOK: loadedForm-state
+
+    /* ==========================================================
+       BLOCK 4.4 — UI helpers (status)
+    =========================================================== */
+    function setStatus(kind, msg) {
+      // kind: "info" | "ok" | "warn"
+      elStatus.classList.remove("statusBox--info", "statusBox--ok", "statusBox--warn");
+      if (kind === "info") elStatus.classList.add("statusBox--info");
+      if (kind === "ok") elStatus.classList.add("statusBox--ok");
+      if (kind === "warn") elStatus.classList.add("statusBox--warn");
+      elStatus.textContent = msg; // XSS-safe
+    }
+
+    function setFormMeta(form) {
+      if (!form) {
+        elFormTitle.textContent = "—";
+        elFormId.textContent = "—";
+        elFormVersion.textContent = "—";
+        return;
+      }
+      elFormTitle.textContent = String(form.title || "—");
+      elFormId.textContent = String(form.id || "—");
+      elFormVersion.textContent = String(form.version || "—");
+    }
+
+    function renderQuestions(form) {
+      // Fail-closed
+      elQuestionsWrap.innerHTML = ""; // vi bygger DOM säkert via createElement
+      if (!form || !Array.isArray(form.questions) || form.questions.length === 0) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "Inga frågor hittades i formuläret.";
+        elQuestionsWrap.appendChild(p);
+        return;
+      }
+
+      // Lista av frågor
+      const list = document.createElement("ol");
+      list.style.margin = "0";
+      list.style.paddingLeft = "18px";
+
+      form.questions.forEach((q, idx) => {
+        const li = document.createElement("li");
+        li.style.margin = "10px 0";
+
+        const title = document.createElement("div");
+        title.style.fontWeight = "700";
+        title.style.color = "#e2e8f0";
+        title.textContent = `${idx + 1}. ${String(q.text || "")}`; // XSS-safe
+
+        const meta = document.createElement("div");
+        meta.className = "muted small";
+        meta.style.marginTop = "4px";
+        meta.textContent = `id: ${String(q.id || "—")} • typ: ${String(q.type || "—")}`;
+
+        li.appendChild(title);
+        li.appendChild(meta);
+
+        // Svarsalternativ (om single)
+        if (Array.isArray(q.options) && q.options.length > 0) {
+          const optWrap = document.createElement("div");
+          optWrap.className = "muted";
+          optWrap.style.marginTop = "6px";
+
+          const ul = document.createElement("ul");
+          ul.style.margin = "6px 0 0 0";
+          ul.style.paddingLeft = "18px";
+
+          q.options.forEach((opt) => {
+            const oli = document.createElement("li");
+            oli.textContent = String(opt); // XSS-safe
+            ul.appendChild(oli);
+          });
+
+          optWrap.appendChild(ul);
+          li.appendChild(optWrap);
+        } else if (q.type === "free_text") {
+          const note = document.createElement("div");
+          note.className = "muted";
+          note.style.marginTop = "6px";
+          note.textContent = "Fritextfråga (ingen fast skala).";
+          li.appendChild(note);
+        }
+
+        // Followup info
+        if (q.followup && typeof q.followup.ifOption === "string") {
+          const f = document.createElement("div");
+          f.className = "muted small";
+          f.style.marginTop = "6px";
+          f.textContent = `Följdfråga visas om svar = "${q.followup.ifOption}".`;
+          li.appendChild(f);
+        }
+
+        list.appendChild(li);
+      });
+
+      elQuestionsWrap.appendChild(list);
+    }
+
+    function updateActivateButton() {
+      elBtnActivate.disabled = !loadedForm;
+    }
+
+    /* ==========================================================
+       BLOCK 4.5 — Actions
+    =========================================================== */
+
+    async function loadFormFromData() {
+      // HOOK: fetch-form
+      setStatus("info", "Läser formulär från /data…");
+      loadedForm = null;
+      updateActivateButton();
+      setFormMeta(null);
+      renderQuestions(null);
+
+      try {
+        // Relativ väg från pages/forms.html -> data/...
+        const res = await fetch("../data/form.matlador_feedback_v1.json", { cache: "no-store" });
+        if (!res.ok) {
+          setStatus("warn", `Kunde inte läsa formulärfilen (HTTP ${res.status}). Kontrollera att filen finns i /data/.`);
+          return;
+        }
+        const data = await res.json();
+
+        // Minimal validering (fail-closed)
+        if (!data || typeof data.id !== "string" || !Array.isArray(data.questions)) {
+          setStatus("warn", "Formulärfilen har fel format (saknar id eller questions[]).");
+          return;
+        }
+
+        loadedForm = data;
+        setFormMeta(loadedForm);
+        renderQuestions(loadedForm);
+        updateActivateButton();
+
+        // Visa om detta redan är aktivt
+        const active = getActiveForm();
+        if (active.ok && active.form && active.form.id === loadedForm.id) {
+          setStatus("ok", "Formulär laddat. Detta formulär är redan aktivt.");
+        } else {
+          setStatus("ok", "Formulär laddat. Klicka “Aktivera formulär” för att spara det som aktivt.");
+        }
+      } catch (e) {
+        setStatus("warn", "Ett fel uppstod när formuläret skulle läsas (JSON/fetch-fel).");
+      }
+    }
+
+    function activateLoadedForm() {
+      if (!loadedForm) {
+        setStatus("warn", "Ingen formulärdefinition är laddad. Klicka “Läs formulär” först.");
+        return;
+      }
+      const res = setActiveForm(loadedForm);
+      if (!res.ok) {
+        setStatus("warn", res.error || "Kunde inte aktivera formuläret (okänt fel).");
+        return;
+      }
+      setStatus("ok", "Formulär aktiverat. Nu kan du registrera mätningar.");
+    }
+
+    function clearActive() {
+      clearActiveForm();
+      setStatus("ok", "Aktivt formulär rensat (localStorage).");
+    }
+
+    /* ==========================================================
+       BLOCK 4.6 — Init
+    =========================================================== */
+
+    function init() {
+      // Visa current active status vid load
+      const active = getActiveForm();
+      if (!active.ok) {
+        setStatus("warn", active.error || "Fel vid läsning av aktivt formulär.");
+        return;
+      }
+      if (!active.form) {
+        setStatus("info", "Inget aktivt formulär ännu. Klicka “Läs formulär” och aktivera.");
+        return;
+      }
+      setStatus("ok", `Aktivt formulär: ${String(active.form.title || active.form.id)}.`);
+      // Vi renderar inte aktivt formulär här automatiskt för att undvika förvirring;
+      // använd "Läs formulär" så ser du exakt filen som ligger i /data/.
+    }
+
+    /* ==========================================================
+       BLOCK 4.7 — Events
+    =========================================================== */
+
+    elBtnLoad.addEventListener("click", loadFormFromData);
+    elBtnActivate.addEventListener("click", activateLoadedForm);
+    elBtnClear.addEventListener("click", clearActive);
+
+    init();
+  </script>
+</body>
+</html>
