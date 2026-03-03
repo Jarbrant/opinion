@@ -1,12 +1,13 @@
 <!-- ============================================================
      FIL: index.html  (HEL FIL)
+     PATCH: UI-MODERN-INDEX-01 — Modernare startsida med tydliga boxar/containers
      PROJEKT: Frågeformulär + Mätningar + Grafer (GitHub Pages)
-     VERSION: 0.1.0 (MVP-start)
+     VERSION: 0.1.1
 
      POLICY:
      - UI-only (GitHub Pages)
      - Ingen backend
-     - XSS-safe: använd textContent i JS (kommer i kommande filer)
+     - XSS-safe: använd textContent i JS
      - Lätt att felsöka: tydliga BLOCK + inlinekommentarer
 ============================================================ -->
 <!doctype html>
@@ -22,7 +23,6 @@
 
   <!-- ==========================================================
        BLOCK 2 — CSS
-       OBS: main.css levereras i nästa filer.
   =========================================================== -->
   <link rel="stylesheet" href="./assets/css/main.css" />
 </head>
@@ -49,52 +49,314 @@
   </header>
 
   <!-- ==========================================================
-       BLOCK 4 — Main: Startkort
+       BLOCK 4 — Main: Modernare “Dashboard”-layout (containers)
+       OBS: Vi använder inline-layout (grid) för att slippa CSS-patch.
   =========================================================== -->
   <main class="container">
-    <section class="card">
-      <h1 class="h1">Snabbstart</h1>
-      <p class="muted">
-        1) Kontrollera formuläret (frågor + svarsalternativ).<br />
-        2) Registrera en ny mätning (datum + antal per svar).<br />
-        3) Se rapport: grafer + utveckling från förra mätningen.
-      </p>
+    <!-- ========================================================
+         BLOCK 4.1 — Dashboard Grid (2 kolumner när plats finns)
+    ========================================================= -->
+    <div
+      style="
+        display:grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 14px;
+        margin-top: 18px;
+      "
+    >
+      <!-- ======================================================
+           CONTAINER A — Översikt / Vad är sidan till för?
+      ======================================================= -->
+      <section class="card" aria-label="Översikt">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <h1 class="h1" style="margin-bottom:6px;">Start</h1>
+            <p class="muted" style="margin:0;">
+              Här skapar du en mätning på några minuter och ser utveckling över tid.
+            </p>
+          </div>
 
-      <div class="grid3">
-        <a class="tile" href="./pages/forms.html">
-          <div class="tile__title">1. Formulär</div>
-          <div class="tile__text">Se/hantera frågor och svarsalternativ.</div>
-        </a>
+          <!-- Badge (inline, så vi slipper CSS-ändring) -->
+          <span
+            class="muted small"
+            style="
+              display:inline-flex;
+              align-items:center;
+              gap:6px;
+              padding:6px 10px;
+              border-radius:999px;
+              border:1px solid rgba(148,163,184,0.18);
+              background: rgba(2,6,23,0.35);
+              white-space:nowrap;
+            "
+            title="Container-typ"
+          >
+            INFO
+          </span>
+        </div>
 
-        <a class="tile" href="./pages/measure.html">
-          <div class="tile__title">2. Ny mätning</div>
-          <div class="tile__text">Skriv datum och antal svar per fråga.</div>
-        </a>
+        <div style="margin-top: 12px;">
+          <div
+            style="
+              display:grid;
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: 10px;
+            "
+          >
+            <!-- Mini-boxar för att förtydliga vad som finns -->
+            <div
+              style="
+                border:1px solid rgba(148,163,184,0.14);
+                background: rgba(2,6,23,0.35);
+                border-radius:16px;
+                padding:12px;
+              "
+            >
+              <div style="font-weight:800; color:#e2e8f0;">Formulär</div>
+              <div class="muted small" style="margin-top:4px;">
+                Frågor + svarsalternativ (källan för alla mätningar).
+              </div>
+            </div>
 
-        <a class="tile" href="./pages/report.html">
-          <div class="tile__title">3. Rapport</div>
-          <div class="tile__text">Grafer + jämförelse mot föregående mätning.</div>
-        </a>
-      </div>
-    </section>
+            <div
+              style="
+                border:1px solid rgba(148,163,184,0.14);
+                background: rgba(2,6,23,0.35);
+                border-radius:16px;
+                padding:12px;
+              "
+            >
+              <div style="font-weight:800; color:#e2e8f0;">Mätningar</div>
+              <div class="muted small" style="margin-top:4px;">
+                Datum + antal per svar (sparas lokalt).
+              </div>
+            </div>
+
+            <div
+              style="
+                border:1px solid rgba(148,163,184,0.14);
+                background: rgba(2,6,23,0.35);
+                border-radius:16px;
+                padding:12px;
+              "
+            >
+              <div style="font-weight:800; color:#e2e8f0;">Rapport</div>
+              <div class="muted small" style="margin-top:4px;">
+                Grafer + jämförelse mot föregående.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           CONTAINER B — Status (tydlig “vad den är till för”)
+           Viktigt: statusBox-id måste finnas (JS använder den).
+      ======================================================= -->
+      <section class="card" aria-label="Status">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <h2 class="h2" style="margin-bottom:6px;">Status</h2>
+            <p class="muted small" style="margin:0;">
+              Visar om formulär och mätningar finns sparade i webbläsaren.
+            </p>
+          </div>
+
+          <span
+            class="muted small"
+            style="
+              display:inline-flex;
+              align-items:center;
+              gap:6px;
+              padding:6px 10px;
+              border-radius:999px;
+              border:1px solid rgba(148,163,184,0.18);
+              background: rgba(2,6,23,0.35);
+              white-space:nowrap;
+            "
+            title="Container-typ"
+          >
+            OUTPUT
+          </span>
+        </div>
+
+        <div id="statusBox" class="statusBox" role="status" aria-live="polite" style="margin-top: 12px;">
+          Läser status…
+        </div>
+
+        <div class="muted small" style="margin-top:10px;">
+          Tips: Om status säger “inget aktivt formulär” → gå till <b>Formulär</b> och aktivera.
+        </div>
+      </section>
+    </div>
 
     <!-- ========================================================
-         BLOCK 5 — Status / Debug (MVP)
-         Visar bara om det finns data i localStorage.
+         BLOCK 4.2 — Arbetsflöde + Snabblänkar (separat rad)
     ========================================================= -->
-    <section class="card">
-      <h2 class="h2">Status</h2>
-      <div id="statusBox" class="statusBox" role="status" aria-live="polite">
-        Läser status…
-      </div>
-      <p class="muted small">
-        Tips: När du lagt in en mätning kan du gå till Rapport och se grafer direkt.
-      </p>
-    </section>
+    <div
+      style="
+        display:grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin-top: 14px;
+      "
+    >
+      <!-- ======================================================
+           CONTAINER C — Arbetsflöde (vad gör man i vilken ordning)
+      ======================================================= -->
+      <section class="card" aria-label="Arbetsflöde">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <h2 class="h2" style="margin-bottom:6px;">Arbetsflöde</h2>
+            <p class="muted small" style="margin:0;">
+              Gör alltid i denna ordning för att få jämförbar statistik.
+            </p>
+          </div>
+
+          <span
+            class="muted small"
+            style="
+              display:inline-flex;
+              align-items:center;
+              gap:6px;
+              padding:6px 10px;
+              border-radius:999px;
+              border:1px solid rgba(148,163,184,0.18);
+              background: rgba(2,6,23,0.35);
+              white-space:nowrap;
+            "
+            title="Container-typ"
+          >
+            PROCESS
+          </span>
+        </div>
+
+        <!-- Steg-boxar -->
+        <div
+          style="
+            margin-top: 12px;
+            display:grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+          "
+        >
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2,6,23,0.35);
+              border-radius:16px;
+              padding:12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">1) Formulär</div>
+            <div class="muted small" style="margin-top:4px;">
+              Säkerställ att rätt frågor/svar används.
+            </div>
+          </div>
+
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2,6,23,0.35);
+              border-radius:16px;
+              padding:12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">2) Ny mätning</div>
+            <div class="muted small" style="margin-top:4px;">
+              Skriv datum + antal per svarsalternativ.
+            </div>
+          </div>
+
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2,6,23,0.35);
+              border-radius:16px;
+              padding:12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">3) Rapport</div>
+            <div class="muted small" style="margin-top:4px;">
+              Se grafer + “utveckling från förra mätningen”.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           CONTAINER D — Snabblänkar (tiles)
+      ======================================================= -->
+      <section class="card" aria-label="Snabblänkar">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <h2 class="h2" style="margin-bottom:6px;">Snabblänkar</h2>
+            <p class="muted small" style="margin:0;">
+              Gå direkt till rätt vy.
+            </p>
+          </div>
+
+          <span
+            class="muted small"
+            style="
+              display:inline-flex;
+              align-items:center;
+              gap:6px;
+              padding:6px 10px;
+              border-radius:999px;
+              border:1px solid rgba(148,163,184,0.18);
+              background: rgba(2,6,23,0.35);
+              white-space:nowrap;
+            "
+            title="Container-typ"
+          >
+            NAV
+          </span>
+        </div>
+
+        <!-- Behåller dina befintliga tiles -->
+        <div class="grid3" style="margin-top: 12px;">
+          <a class="tile" href="./pages/forms.html" aria-label="Gå till Formulär">
+            <div class="tile__title">Formulär</div>
+            <div class="tile__text">Se/aktivera frågor och svarsalternativ.</div>
+          </a>
+
+          <a class="tile" href="./pages/measure.html" aria-label="Gå till Ny mätning">
+            <div class="tile__title">Ny mätning</div>
+            <div class="tile__text">Registrera datum + antal per svar.</div>
+          </a>
+
+          <a class="tile" href="./pages/report.html" aria-label="Gå till Rapport">
+            <div class="tile__title">Rapport</div>
+            <div class="tile__text">Grafer + jämförelse mot föregående.</div>
+          </a>
+        </div>
+      </section>
+    </div>
+
+    <!-- ========================================================
+         BLOCK 4.3 — Responsiv “fail-safe” (utan CSS patch)
+         Om skärmen är smal: gör grid till 1 kolumn.
+         OBS: Vi använder ett minimalt script för layout, ingen data-logik.
+    ========================================================= -->
+    <script>
+      (function responsiveIndexGrid() {
+        const mq = window.matchMedia('(max-width: 860px)');
+        const grids = document.querySelectorAll('main.container > div[style*="grid-template-columns: 1.2fr 0.8fr"]');
+        function apply() {
+          grids.forEach((g) => {
+            if (!g || !g.style) return;
+            g.style.gridTemplateColumns = mq.matches ? '1fr' : '1.2fr 0.8fr';
+          });
+        }
+        if (mq && mq.addEventListener) mq.addEventListener('change', apply);
+        apply();
+      })();
+    </script>
   </main>
 
   <!-- ==========================================================
-       BLOCK 6 — Footer
+       BLOCK 5 — Footer
   =========================================================== -->
   <footer class="footer">
     <div class="container footer__inner">
@@ -103,8 +365,8 @@
   </footer>
 
   <!-- ==========================================================
-       BLOCK 7 — Minimal JS (endast status på startsidan)
-       OBS: Riktig logik kommer i assets/js/storage.js senare.
+       BLOCK 6 — Minimal JS (endast status på startsidan)
+       OBS: Riktig logik finns i assets/js/storage.js på övriga sidor.
   =========================================================== -->
   <script>
     // HOOK: statusBox
@@ -112,7 +374,7 @@
       const box = document.getElementById('statusBox');
       if (!box) return;
 
-      // MVP-keys (kommer standardiseras i storage.js)
+      // MVP-keys (standard i storage.js)
       const FORM_KEY = 'SURVEY_FORM_ACTIVE_V1';
       const MEAS_KEY = 'SURVEY_MEASUREMENTS_V1';
 
