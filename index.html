@@ -1,1 +1,153 @@
+<!-- ============================================================
+     FIL: index.html  (HEL FIL)
+     PROJEKT: Frågeformulär + Mätningar + Grafer (GitHub Pages)
+     VERSION: 0.1.0 (MVP-start)
 
+     POLICY:
+     - UI-only (GitHub Pages)
+     - Ingen backend
+     - XSS-safe: använd textContent i JS (kommer i kommande filer)
+     - Lätt att felsöka: tydliga BLOCK + inlinekommentarer
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <!-- ==========================================================
+       BLOCK 1 — Meta + Titel
+  =========================================================== -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enkätmätningar — Matlådor</title>
+  <meta name="description" content="Skapa formulär, registrera mätningar och se grafer över tid (GitHub Pages MVP)." />
+
+  <!-- ==========================================================
+       BLOCK 2 — CSS
+       OBS: main.css levereras i nästa filer.
+  =========================================================== -->
+  <link rel="stylesheet" href="./assets/css/main.css" />
+</head>
+
+<body>
+  <!-- ==========================================================
+       BLOCK 3 — Toppbar / Navigation
+  =========================================================== -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <span class="brand__dot" aria-hidden="true"></span>
+        <span class="brand__title">Enkätmätningar</span>
+        <span class="brand__muted">Matlådor</span>
+      </div>
+
+      <nav class="nav" aria-label="Huvudmeny">
+        <!-- HOOK: nav-links -->
+        <a class="nav__link" href="./pages/forms.html">Formulär</a>
+        <a class="nav__link" href="./pages/measure.html">Ny mätning</a>
+        <a class="nav__link" href="./pages/report.html">Rapport</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==========================================================
+       BLOCK 4 — Main: Startkort
+  =========================================================== -->
+  <main class="container">
+    <section class="card">
+      <h1 class="h1">Snabbstart</h1>
+      <p class="muted">
+        1) Kontrollera formuläret (frågor + svarsalternativ).<br />
+        2) Registrera en ny mätning (datum + antal per svar).<br />
+        3) Se rapport: grafer + utveckling från förra mätningen.
+      </p>
+
+      <div class="grid3">
+        <a class="tile" href="./pages/forms.html">
+          <div class="tile__title">1. Formulär</div>
+          <div class="tile__text">Se/hantera frågor och svarsalternativ.</div>
+        </a>
+
+        <a class="tile" href="./pages/measure.html">
+          <div class="tile__title">2. Ny mätning</div>
+          <div class="tile__text">Skriv datum och antal svar per fråga.</div>
+        </a>
+
+        <a class="tile" href="./pages/report.html">
+          <div class="tile__title">3. Rapport</div>
+          <div class="tile__text">Grafer + jämförelse mot föregående mätning.</div>
+        </a>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         BLOCK 5 — Status / Debug (MVP)
+         Visar bara om det finns data i localStorage.
+    ========================================================= -->
+    <section class="card">
+      <h2 class="h2">Status</h2>
+      <div id="statusBox" class="statusBox" role="status" aria-live="polite">
+        Läser status…
+      </div>
+      <p class="muted small">
+        Tips: När du lagt in en mätning kan du gå till Rapport och se grafer direkt.
+      </p>
+    </section>
+  </main>
+
+  <!-- ==========================================================
+       BLOCK 6 — Footer
+  =========================================================== -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <span class="muted small">MVP • GitHub Pages • localStorage</span>
+    </div>
+  </footer>
+
+  <!-- ==========================================================
+       BLOCK 7 — Minimal JS (endast status på startsidan)
+       OBS: Riktig logik kommer i assets/js/storage.js senare.
+  =========================================================== -->
+  <script>
+    // HOOK: statusBox
+    (function initIndexStatus() {
+      const box = document.getElementById('statusBox');
+      if (!box) return;
+
+      // MVP-keys (kommer standardiseras i storage.js)
+      const FORM_KEY = 'SURVEY_FORM_ACTIVE_V1';
+      const MEAS_KEY = 'SURVEY_MEASUREMENTS_V1';
+
+      const hasForm = !!localStorage.getItem(FORM_KEY);
+      const measurementsRaw = localStorage.getItem(MEAS_KEY);
+
+      let mCount = 0;
+      if (measurementsRaw) {
+        try {
+          const arr = JSON.parse(measurementsRaw);
+          if (Array.isArray(arr)) mCount = arr.length;
+        } catch (e) {
+          // Fail-closed i status: visa tydligt om datan är trasig
+          box.textContent = 'Status: Hittade mätningar men datan verkar vara korrupt (JSON-fel).';
+          box.classList.add('statusBox--warn');
+          return;
+        }
+      }
+
+      // Render (XSS-safe: textContent)
+      if (!hasForm && mCount === 0) {
+        box.textContent = 'Status: Inget formulär och inga mätningar ännu. Börja i “Formulär”.';
+        box.classList.add('statusBox--info');
+        return;
+      }
+
+      if (!hasForm && mCount > 0) {
+        box.textContent = `Status: ${mCount} mätning(ar) finns, men inget aktivt formulär sparat.`;
+        box.classList.add('statusBox--warn');
+        return;
+      }
+
+      box.textContent = `Status: Formulär finns. Mätningar sparade: ${mCount}.`;
+      box.classList.add('statusBox--ok');
+    })();
+  </script>
+</body>
+</html>
