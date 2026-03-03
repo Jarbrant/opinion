@@ -1,1 +1,550 @@
+<!-- ============================================================
+     FIL: pages/measure.html  (HEL FIL)
+     PROJEKT: Enkätmätningar — Matlådor (GitHub Pages)
+     VERSION: 0.1.0 (MVP)
 
+     Syfte:
+     - Registrera en mätning: datum + (valfritt) enhet + antal per svar
+     - Validera input (fail-closed) innan save
+     - Spara i localStorage via storage.js
+     - Förbereda för rapport (senaste vs föregående)
+
+     Policy:
+     - UI-only
+     - XSS-safe: render via createElement + textContent
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <!-- ==========================================================
+       BLOCK 1 — Meta + CSS
+  =========================================================== -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ny mätning — Enkätmätningar</title>
+  <meta name="description" content="Registrera ny mätning (datum + antal per svar)." />
+  <link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+
+<body>
+  <!-- ==========================================================
+       BLOCK 2 — Toppbar / Navigation
+  =========================================================== -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <span class="brand__dot" aria-hidden="true"></span>
+        <span class="brand__title">Enkätmätningar</span>
+        <span class="brand__muted">Ny mätning</span>
+      </div>
+
+      <nav class="nav" aria-label="Huvudmeny">
+        <a class="nav__link" href="../index.html">Start</a>
+        <a class="nav__link" href="./forms.html">Formulär</a>
+        <a class="nav__link" href="./report.html">Rapport</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==========================================================
+       BLOCK 3 — Main
+  =========================================================== -->
+  <main class="container">
+    <!-- ========================================================
+         BLOCK 3.1 — Status + meta input
+    ========================================================= -->
+    <section class="card">
+      <h1 class="h1">Registrera ny mätning</h1>
+      <p class="muted">
+        Fyll i datum och antal svar per fråga.
+        Programmet sparar mätningen lokalt och rapporten jämför automatiskt med förra mätningen.
+      </p>
+
+      <div id="statusBox" class="statusBox statusBox--info" role="status" aria-live="polite" style="margin-top: 12px;">
+        Status: …
+      </div>
+
+      <div class="fieldRow" style="margin-top: 14px;">
+        <div class="label">Datum (YYYY-MM-DD)</div>
+        <div>
+          <input id="dateInput" class="input" type="date" />
+          <div class="help">Välj datum för mätningen (samma datum kan användas flera gånger om du vill).</div>
+          <div id="dateErr" class="errorText" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">Enhet/Plats (valfritt)</div>
+        <div>
+          <input id="unitInput" class="input" type="text" placeholder="t.ex. Kök 1 / Avd X" />
+          <div class="help">Kan lämnas tomt. Används mest för att skilja mätningar åt.</div>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">Notering (valfritt)</div>
+        <div>
+          <textarea id="notesInput" class="textarea" placeholder="t.ex. Extra många nya kunder denna vecka"></textarea>
+        </div>
+      </div>
+
+      <div class="btnRow" style="margin-top: 10px;">
+        <button id="btnLoadForm" class="btn btn--primary" type="button">Ladda aktivt formulär</button>
+        <button id="btnSave" class="btn" type="button" disabled>Spara mätning</button>
+        <button id="btnReset" class="btn btn--danger" type="button">Rensa inmatning</button>
+      </div>
+
+      <p class="muted small" style="margin-top: 10px;">
+        Tips: Börja med “Ladda aktivt formulär”. Om inget formulär finns: gå till “Formulär” och aktivera.
+      </p>
+    </section>
+
+    <!-- ========================================================
+         BLOCK 3.2 — Frågeinmatning (renderas av JS)
+    ========================================================= -->
+    <section class="card">
+      <h2 class="h2">Svar (antal per alternativ)</h2>
+      <div id="formWrap" class="muted">Ladda formuläret för att börja.</div>
+    </section>
+  </main>
+
+  <!-- ==========================================================
+       BLOCK 4 — Script
+  =========================================================== -->
+  <script type="module">
+    /* ==========================================================
+       BLOCK 4.1 — Imports
+    =========================================================== */
+    import { getActiveForm, addMeasurement } from "../assets/js/storage.js";
+
+    /* ==========================================================
+       BLOCK 4.2 — DOM hooks
+    =========================================================== */
+    const $ = (sel) => document.querySelector(sel);
+
+    const elStatus = $("#statusBox");
+
+    const elDate = $("#dateInput");
+    const elDateErr = $("#dateErr");
+    const elUnit = $("#unitInput");
+    const elNotes = $("#notesInput");
+
+    const elBtnLoadForm = $("#btnLoadForm");
+    const elBtnSave = $("#btnSave");
+    const elBtnReset = $("#btnReset");
+
+    const elFormWrap = $("#formWrap");
+
+    /* ==========================================================
+       BLOCK 4.3 — State (in-memory)
+    =========================================================== */
+    let activeForm = null;          // HOOK: activeForm-state
+    let answerInputs = {};          // HOOK: answerInputs-map: { qid: { optionLabel: inputEl } }
+    let followupInputs = {};        // HOOK: followupInputs-map: { qid: textareaEl }
+    let currentErrors = [];         // HOOK: error-list
+
+    /* ==========================================================
+       BLOCK 4.4 — UI helpers
+    =========================================================== */
+    function setStatus(kind, msg) {
+      elStatus.classList.remove("statusBox--info", "statusBox--ok", "statusBox--warn");
+      if (kind === "info") elStatus.classList.add("statusBox--info");
+      if (kind === "ok") elStatus.classList.add("statusBox--ok");
+      if (kind === "warn") elStatus.classList.add("statusBox--warn");
+      elStatus.textContent = msg;
+    }
+
+    function showDateError(msg) {
+      if (!msg) {
+        elDateErr.style.display = "none";
+        elDateErr.textContent = "";
+        return;
+      }
+      elDateErr.style.display = "block";
+      elDateErr.textContent = msg;
+    }
+
+    function enableSave(enabled) {
+      elBtnSave.disabled = !enabled;
+    }
+
+    function clearFormWrap() {
+      elFormWrap.innerHTML = "";
+      answerInputs = {};
+      followupInputs = {};
+    }
+
+    /* ==========================================================
+       BLOCK 4.5 — Validation helpers
+    =========================================================== */
+
+    function normalizeDateValue(dateValue) {
+      // input[type=date] ger "YYYY-MM-DD" eller "".
+      if (typeof dateValue !== "string") return null;
+      const s = dateValue.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+      return s;
+    }
+
+    function parseNonNegativeInt(s) {
+      // Tillåt tomt => 0 (MVP)
+      if (s == null) return { ok: true, value: 0 };
+      const raw = String(s).trim();
+      if (raw === "") return { ok: true, value: 0 };
+      if (!/^\d+$/.test(raw)) return { ok: false, value: 0 };
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return { ok: false, value: 0 };
+      if (n < 0) return { ok: false, value: 0 };
+      return { ok: true, value: n };
+    }
+
+    function validateBeforeSave() {
+      currentErrors = [];
+
+      const dateKey = normalizeDateValue(elDate.value);
+      if (!dateKey) {
+        currentErrors.push("Datum saknas eller har fel format.");
+        showDateError("Välj ett datum (YYYY-MM-DD).");
+      } else {
+        showDateError(null);
+      }
+
+      if (!activeForm || !Array.isArray(activeForm.questions)) {
+        currentErrors.push("Inget aktivt formulär laddat.");
+      }
+
+      // Validera alla number-fält (fail-closed)
+      if (activeForm && Array.isArray(activeForm.questions)) {
+        activeForm.questions.forEach((q) => {
+          if (!q || typeof q.id !== "string") return;
+          if (q.type === "free_text") return; // ingen counts
+
+          const map = answerInputs[q.id];
+          if (!map) {
+            currentErrors.push(`Saknar inputs för fråga: ${q.id}`);
+            return;
+          }
+
+          // Kontrollera att varje option har ett giltigt heltal >=0
+          (q.options || []).forEach((opt) => {
+            const inp = map[opt];
+            const parsed = parseNonNegativeInt(inp?.value);
+            if (!parsed.ok) {
+              currentErrors.push(`Ogiltigt antal för "${q.text}" → "${opt}". Endast heltal (0,1,2…).`);
+              // markera input visuellt (minimal)
+              if (inp) inp.style.borderColor = "rgba(248, 113, 113, 0.8)";
+            } else {
+              if (inp) inp.style.borderColor = "rgba(148, 163, 184, 0.16)";
+            }
+          });
+
+          // Followup: om frågan har followup och "Nej" > 0 → kräva text (MVP-regel)
+          if (q.type === "single_with_followup_text_if" && q.followup && typeof q.followup.ifOption === "string") {
+            const followOpt = q.followup.ifOption;
+            const followInp = map[followOpt];
+            const followCount = parseNonNegativeInt(followInp?.value);
+            const txtEl = followupInputs[q.id];
+
+            if (followCount.ok && followCount.value > 0) {
+              const txt = (txtEl?.value || "").trim();
+              if (!txt) {
+                currentErrors.push(`Följdfråga saknas: "${q.followup.label || "Ange text"}" (du har ${followCount.value} st "Nej").`);
+                if (txtEl) txtEl.style.borderColor = "rgba(248, 113, 113, 0.8)";
+              } else if (txtEl) {
+                txtEl.style.borderColor = "rgba(148, 163, 184, 0.16)";
+              }
+            } else if (txtEl) {
+              // om inga "Nej", nollställ röd markering
+              txtEl.style.borderColor = "rgba(148, 163, 184, 0.16)";
+            }
+          }
+        });
+      }
+
+      return currentErrors.length === 0;
+    }
+
+    /* ==========================================================
+       BLOCK 4.6 — Render: Form input UI
+    =========================================================== */
+
+    function renderActiveForm(form) {
+      clearFormWrap();
+
+      if (!form || !Array.isArray(form.questions) || form.questions.length === 0) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "Inget aktivt formulär att visa. Gå till Formulär och aktivera.";
+        elFormWrap.appendChild(p);
+        return;
+      }
+
+      const intro = document.createElement("div");
+      intro.className = "muted small";
+      intro.textContent = `Aktivt formulär: ${String(form.title || form.id)} • ${form.questions.length} frågor`;
+      elFormWrap.appendChild(intro);
+
+      // Wrapper för frågekort
+      const list = document.createElement("div");
+      list.style.display = "grid";
+      list.style.gridTemplateColumns = "1fr";
+      list.style.gap = "12px";
+      list.style.marginTop = "12px";
+
+      form.questions.forEach((q, idx) => {
+        const card = document.createElement("div");
+        card.style.border = "1px solid rgba(148, 163, 184, 0.14)";
+        card.style.background = "rgba(2, 6, 23, 0.35)";
+        card.style.borderRadius = "16px";
+        card.style.padding = "14px";
+
+        const title = document.createElement("div");
+        title.style.fontWeight = "800";
+        title.style.color = "#e2e8f0";
+        title.textContent = `${idx + 1}. ${String(q.text || "")}`;
+        card.appendChild(title);
+
+        const meta = document.createElement("div");
+        meta.className = "muted small";
+        meta.style.marginTop = "4px";
+        meta.textContent = `id: ${String(q.id || "—")}`;
+        card.appendChild(meta);
+
+        if (q.type === "free_text") {
+          // Fritext: MVP = en textarea (valfri)
+          const ta = document.createElement("textarea");
+          ta.className = "textarea";
+          ta.placeholder = "Skriv kommentarer här (valfritt)…";
+          ta.style.marginTop = "10px";
+          // Vi sparar som followups[qid] = [text] (en rad). Kan utökas senare.
+          followupInputs[q.id] = ta;
+
+          const help = document.createElement("div");
+          help.className = "help";
+          help.textContent = "Fritext sparas i mätningen. Rapport kan visa antal + lista senare.";
+          card.appendChild(ta);
+          card.appendChild(help);
+
+          list.appendChild(card);
+          return;
+        }
+
+        // Options: render input för antal per svar
+        const options = Array.isArray(q.options) ? q.options : [];
+        answerInputs[q.id] = {};
+        const grid = document.createElement("div");
+        grid.style.marginTop = "10px";
+        grid.style.display = "grid";
+        grid.style.gridTemplateColumns = "1fr";
+        grid.style.gap = "8px";
+
+        options.forEach((opt) => {
+          const row = document.createElement("div");
+          row.style.display = "grid";
+          row.style.gridTemplateColumns = "1fr 140px";
+          row.style.gap = "10px";
+          row.style.alignItems = "center";
+
+          const lbl = document.createElement("div");
+          lbl.className = "muted";
+          lbl.textContent = String(opt);
+
+          const inp = document.createElement("input");
+          inp.className = "input";
+          inp.type = "number";
+          inp.min = "0";
+          inp.step = "1";
+          inp.placeholder = "0";
+          inp.value = "0"; // default 0
+          inp.setAttribute("inputmode", "numeric");
+          inp.setAttribute("aria-label", `Antal för ${String(opt)}`);
+
+          // HOOK: input-change
+          inp.addEventListener("input", () => {
+            // En enkel live-validering (snäll): markera rött om fel
+            const parsed = parseNonNegativeInt(inp.value);
+            inp.style.borderColor = parsed.ok ? "rgba(148, 163, 184, 0.16)" : "rgba(248, 113, 113, 0.8)";
+          });
+
+          answerInputs[q.id][opt] = inp;
+
+          row.appendChild(lbl);
+          row.appendChild(inp);
+          grid.appendChild(row);
+        });
+
+        card.appendChild(grid);
+
+        // Followup: om frågan kräver text vid ett visst svar ("Nej")
+        if (q.type === "single_with_followup_text_if" && q.followup && typeof q.followup.ifOption === "string") {
+          const fTitle = document.createElement("div");
+          fTitle.className = "muted small";
+          fTitle.style.marginTop = "10px";
+          fTitle.textContent = `Följdfråga (om "${q.followup.ifOption}" > 0): ${String(q.followup.label || "")}`;
+          card.appendChild(fTitle);
+
+          const fTa = document.createElement("textarea");
+          fTa.className = "textarea";
+          fTa.placeholder = "Skriv kort vad som saknas…";
+          fTa.style.marginTop = "8px";
+          followupInputs[q.id] = fTa;
+          card.appendChild(fTa);
+        }
+
+        list.appendChild(card);
+      });
+
+      elFormWrap.appendChild(list);
+    }
+
+    /* ==========================================================
+       BLOCK 4.7 — Actions
+    =========================================================== */
+
+    function loadActiveForm() {
+      const res = getActiveForm();
+      if (!res.ok) {
+        activeForm = null;
+        enableSave(false);
+        setStatus("warn", res.error || "Kunde inte läsa aktivt formulär.");
+        renderActiveForm(null);
+        return;
+      }
+
+      if (!res.form) {
+        activeForm = null;
+        enableSave(false);
+        setStatus("info", "Inget aktivt formulär. Gå till “Formulär” och aktivera först.");
+        renderActiveForm(null);
+        return;
+      }
+
+      activeForm = res.form;
+      setStatus("ok", `Formulär laddat: ${String(activeForm.title || activeForm.id)}. Fyll i datum och svar, sen “Spara mätning”.`);
+      renderActiveForm(activeForm);
+
+      // Save kan aktiveras nu, men datum måste finnas (valideras på save)
+      enableSave(true);
+    }
+
+    function resetInputs() {
+      // Rensa datum + textfält + alla counts till 0
+      elDate.value = "";
+      elUnit.value = "";
+      elNotes.value = "";
+      showDateError(null);
+
+      // counts
+      Object.values(answerInputs).forEach((map) => {
+        Object.values(map).forEach((inp) => {
+          inp.value = "0";
+          inp.style.borderColor = "rgba(148, 163, 184, 0.16)";
+        });
+      });
+
+      // followups
+      Object.values(followupInputs).forEach((ta) => {
+        ta.value = "";
+        ta.style.borderColor = "rgba(148, 163, 184, 0.16)";
+      });
+
+      setStatus("info", "Inmatning rensad.");
+    }
+
+    function buildMeasurementPayload() {
+      // Bygger measurement-objektet som storage.js förväntar sig
+      const dateKey = normalizeDateValue(elDate.value);
+      const unit = (elUnit.value || "").trim();
+      const notes = (elNotes.value || "").trim();
+
+      const answers = {};
+      const followups = {};
+
+      // answers: { qid: { optionLabel: count } }
+      if (activeForm && Array.isArray(activeForm.questions)) {
+        activeForm.questions.forEach((q) => {
+          if (!q || typeof q.id !== "string") return;
+
+          if (q.type === "free_text") {
+            const ta = followupInputs[q.id];
+            const txt = (ta?.value || "").trim();
+            if (txt) followups[q.id] = [txt];
+            return;
+          }
+
+          const map = answerInputs[q.id] || {};
+          const out = {};
+          (q.options || []).forEach((opt) => {
+            const inp = map[opt];
+            const parsed = parseNonNegativeInt(inp?.value);
+            out[opt] = parsed.ok ? parsed.value : 0;
+          });
+          answers[q.id] = out;
+
+          // Followup conditional (om text finns)
+          if (q.type === "single_with_followup_text_if") {
+            const ta = followupInputs[q.id];
+            const txt = (ta?.value || "").trim();
+            if (txt) followups[q.id] = [txt];
+          }
+        });
+      }
+
+      const payload = {
+        formId: String(activeForm?.id || ""),
+        date: dateKey || "",
+        unit,
+        notes,
+        answers,
+        followups: Object.keys(followups).length ? followups : undefined
+      };
+
+      return payload;
+    }
+
+    function saveMeasurement() {
+      if (!validateBeforeSave()) {
+        // Summera max 1 rad i status (kort)
+        setStatus("warn", `Kan inte spara: ${currentErrors[0]}${currentErrors.length > 1 ? " (fler fel finns)" : ""}`);
+        return;
+      }
+
+      const payload = buildMeasurementPayload();
+
+      const res = addMeasurement(payload);
+      if (!res.ok) {
+        setStatus("warn", res.error || "Kunde inte spara mätningen (okänt fel).");
+        return;
+      }
+
+      setStatus("ok", "Mätningen är sparad. Gå till “Rapport” för grafer och jämförelse.");
+    }
+
+    /* ==========================================================
+       BLOCK 4.8 — Init
+    =========================================================== */
+
+    function init() {
+      // Förval: dagens datum (snabbare), men användaren kan ändra
+      const now = new Date();
+      const yyyy = String(now.getFullYear());
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      elDate.value = `${yyyy}-${mm}-${dd}`;
+
+      setStatus("info", "Ladda aktivt formulär för att börja.");
+      enableSave(false);
+    }
+
+    /* ==========================================================
+       BLOCK 4.9 — Events
+    =========================================================== */
+
+    elBtnLoadForm.addEventListener("click", loadActiveForm);
+    elBtnSave.addEventListener("click", saveMeasurement);
+    elBtnReset.addEventListener("click", resetInputs);
+
+    init();
+  </script>
+</body>
+</html>
