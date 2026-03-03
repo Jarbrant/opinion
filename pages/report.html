@@ -1,1 +1,489 @@
+<!-- ============================================================
+     FIL: pages/report.html  (HEL FIL)
+     PROJEKT: Enkätmätningar — Matlådor (GitHub Pages)
+     VERSION: 0.1.0 (MVP)
 
+     Syfte:
+     - Visa rapport med:
+         * Översikt: senaste mätning + jämförelse mot föregående
+         * Per fråga: staplar (counts) + positiv% + diff (pp)
+         * Per fråga: trendlinje (positiv% över tid)
+     - Fail-closed: om data saknas/korrupt -> tydliga fel
+
+     Policy:
+     - UI-only
+     - XSS-safe: render via createElement + textContent
+============================================================ -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <!-- ==========================================================
+       BLOCK 1 — Meta + CSS
+  =========================================================== -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rapport — Enkätmätningar</title>
+  <meta name="description" content="Rapport: grafer + utveckling från förra mätningen." />
+  <link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+
+<body>
+  <!-- ==========================================================
+       BLOCK 2 — Toppbar / Navigation
+  =========================================================== -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <span class="brand__dot" aria-hidden="true"></span>
+        <span class="brand__title">Enkätmätningar</span>
+        <span class="brand__muted">Rapport</span>
+      </div>
+
+      <nav class="nav" aria-label="Huvudmeny">
+        <a class="nav__link" href="../index.html">Start</a>
+        <a class="nav__link" href="./forms.html">Formulär</a>
+        <a class="nav__link" href="./measure.html">Ny mätning</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==========================================================
+       BLOCK 3 — Main
+  =========================================================== -->
+  <main class="container">
+    <!-- ========================================================
+         BLOCK 3.1 — Status + Controls
+    ========================================================= -->
+    <section class="card">
+      <h1 class="h1">Rapport</h1>
+      <p class="muted">
+        Visar senaste mätningen (och jämför automatiskt med föregående).
+        Per fråga visas staplar och trend över tid.
+      </p>
+
+      <div id="statusBox" class="statusBox statusBox--info" role="status" aria-live="polite" style="margin-top: 12px;">
+        Status: …
+      </div>
+
+      <div class="btnRow" style="margin-top: 12px;">
+        <button id="btnReload" class="btn btn--primary" type="button">Ladda om rapport</button>
+      </div>
+
+      <div class="help" style="margin-top: 10px;">
+        Tips: Saknas data? Gå till “Formulär” och aktivera, sen “Ny mätning” och spara.
+      </div>
+    </section>
+
+    <!-- ========================================================
+         BLOCK 3.2 — Overview (senaste + diff)
+    ========================================================= -->
+    <section class="card">
+      <h2 class="h2">Översikt</h2>
+
+      <div class="fieldRow">
+        <div class="label">Senaste datum</div>
+        <div>
+          <div id="ovLatestDate" class="muted">—</div>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">Föregående datum</div>
+        <div>
+          <div id="ovPrevDate" class="muted">—</div>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">Total positiv andel</div>
+        <div>
+          <div id="ovTotalNow" class="muted">—</div>
+          <div id="ovTotalDiff" class="muted small">—</div>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">Kommentarer</div>
+        <div>
+          <div id="ovComments" class="muted">—</div>
+          <div class="help">MVP: visar antal fritextfält ifyllda i senaste mätningen.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         BLOCK 3.3 — Per question report cards
+    ========================================================= -->
+    <section class="card">
+      <h2 class="h2">Per fråga</h2>
+      <div id="reportWrap" class="muted">Ladda rapport för att se resultat.</div>
+    </section>
+  </main>
+
+  <!-- ==========================================================
+       BLOCK 4 — Script
+  =========================================================== -->
+  <script type="module">
+    /* ==========================================================
+       BLOCK 4.1 — Imports
+    =========================================================== */
+    import { getActiveForm, listMeasurements, getLatestMeasurement, getPreviousMeasurement } from "../assets/js/storage.js";
+    import { drawBarCounts, drawTrendLine } from "../assets/js/charts.js";
+
+    /* ==========================================================
+       BLOCK 4.2 — DOM hooks
+    =========================================================== */
+    const $ = (sel) => document.querySelector(sel);
+
+    const elStatus = $("#statusBox");
+    const elBtnReload = $("#btnReload");
+
+    const elOvLatestDate = $("#ovLatestDate");
+    const elOvPrevDate = $("#ovPrevDate");
+    const elOvTotalNow = $("#ovTotalNow");
+    const elOvTotalDiff = $("#ovTotalDiff");
+    const elOvComments = $("#ovComments");
+
+    const elReportWrap = $("#reportWrap");
+
+    /* ==========================================================
+       BLOCK 4.3 — UI helpers
+    =========================================================== */
+    function setStatus(kind, msg) {
+      elStatus.classList.remove("statusBox--info", "statusBox--ok", "statusBox--warn");
+      if (kind === "info") elStatus.classList.add("statusBox--info");
+      if (kind === "ok") elStatus.classList.add("statusBox--ok");
+      if (kind === "warn") elStatus.classList.add("statusBox--warn");
+      elStatus.textContent = msg;
+    }
+
+    function pp(n) {
+      // percentage points formatting
+      if (!Number.isFinite(n)) return "—";
+      const sign = n > 0 ? "+" : "";
+      return `${sign}${n.toFixed(1)} pp`;
+    }
+
+    function pct(n) {
+      if (!Number.isFinite(n)) return "—";
+      return `${n.toFixed(1)}%`;
+    }
+
+    function safeNum(x) {
+      const n = Number(x);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    /* ==========================================================
+       BLOCK 4.4 — Calculations (positiv %)
+============================================================ */
+
+    function getQuestionCounts(measurement, q) {
+      // Returnerar counts[] i samma ordning som q.options
+      const out = [];
+      const ans = measurement?.answers?.[q.id];
+      if (!ans || typeof ans !== "object") {
+        return q.options.map(() => 0);
+      }
+      q.options.forEach((opt) => {
+        out.push(safeNum(ans[opt]));
+      });
+      return out;
+    }
+
+    function calcPositivePctForQuestion(measurement, q) {
+      // Fail-closed: om inga options/positiveOptions -> NaN
+      if (!measurement || !q || !Array.isArray(q.options) || q.options.length === 0) return NaN;
+      if (!Array.isArray(q.positiveOptions) || q.positiveOptions.length === 0) return NaN;
+
+      const ans = measurement?.answers?.[q.id];
+      if (!ans || typeof ans !== "object") return NaN;
+
+      let total = 0;
+      let pos = 0;
+
+      q.options.forEach((opt) => {
+        const c = safeNum(ans[opt]);
+        total += c;
+        if (q.positiveOptions.includes(opt)) pos += c;
+      });
+
+      if (total <= 0) return NaN;
+      return (pos / total) * 100;
+    }
+
+    function calcTotalPositivePct(measurement, form) {
+      // Total = genomsnitt av frågor som har positiv andel beräkningsbar
+      if (!measurement || !form || !Array.isArray(form.questions)) return NaN;
+
+      const vals = [];
+      form.questions.forEach((q) => {
+        if (!q || q.type === "free_text") return;
+        const p = calcPositivePctForQuestion(measurement, q);
+        if (Number.isFinite(p)) vals.push(p);
+      });
+
+      if (vals.length === 0) return NaN;
+      const sum = vals.reduce((a, b) => a + b, 0);
+      return sum / vals.length;
+    }
+
+    function countFilledComments(measurement, form) {
+      // MVP: räkna hur många free_text eller followup-fält som har text
+      if (!measurement || !form || !Array.isArray(form.questions)) return 0;
+      const f = measurement.followups || {};
+      let count = 0;
+
+      form.questions.forEach((q) => {
+        if (!q || typeof q.id !== "string") return;
+        const arr = f[q.id];
+        if (Array.isArray(arr)) {
+          // räkna antal icke-tomma texter
+          arr.forEach((t) => {
+            if (String(t || "").trim()) count += 1;
+          });
+        }
+      });
+
+      return count;
+    }
+
+    function buildTrendPointsForQuestion(formId, qid, form, measurements) {
+      // Returnerar [{date, value}] där value=positiv%
+      const q = form.questions.find((x) => x && x.id === qid);
+      if (!q) return [];
+
+      return measurements
+        .filter((m) => m.formId === formId)
+        .map((m) => {
+          const v = calcPositivePctForQuestion(m, q);
+          return { date: m.date, value: Number.isFinite(v) ? v : NaN };
+        })
+        .filter((p) => Number.isFinite(p.value))
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    }
+
+    /* ==========================================================
+       BLOCK 4.5 — Render
+============================================================ */
+
+    function clearReportWrap() {
+      elReportWrap.innerHTML = "";
+    }
+
+    function renderOverview(form, latest, previous) {
+      elOvLatestDate.textContent = latest?.date ? String(latest.date) : "—";
+      elOvPrevDate.textContent = previous?.date ? String(previous.date) : "—";
+
+      const nowTotal = calcTotalPositivePct(latest, form);
+      const prevTotal = calcTotalPositivePct(previous, form);
+
+      elOvTotalNow.textContent = Number.isFinite(nowTotal) ? pct(nowTotal) : "—";
+
+      if (Number.isFinite(nowTotal) && Number.isFinite(prevTotal)) {
+        elOvTotalDiff.textContent = `Utveckling från föregående: ${pp(nowTotal - prevTotal)} (${pct(prevTotal)} → ${pct(nowTotal)})`;
+      } else {
+        elOvTotalDiff.textContent = "Utveckling från föregående: —";
+      }
+
+      const comments = countFilledComments(latest, form);
+      elOvComments.textContent = latest ? `${comments} kommentar(er)/fritext(er) ifyllda` : "—";
+    }
+
+    function renderQuestionCards(form, latest, previous, measurementsAll) {
+      clearReportWrap();
+
+      if (!form || !Array.isArray(form.questions) || form.questions.length === 0) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "Saknar formulär/frågor.";
+        elReportWrap.appendChild(p);
+        return;
+      }
+
+      if (!latest) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "Inga mätningar ännu. Gå till “Ny mätning” och spara.";
+        elReportWrap.appendChild(p);
+        return;
+      }
+
+      // Wrapper: cards
+      const wrap = document.createElement("div");
+      wrap.style.display = "grid";
+      wrap.style.gridTemplateColumns = "1fr";
+      wrap.style.gap = "14px";
+      wrap.style.marginTop = "10px";
+
+      form.questions.forEach((q, idx) => {
+        if (!q || typeof q.id !== "string") return;
+
+        const card = document.createElement("div");
+        card.style.border = "1px solid rgba(148, 163, 184, 0.14)";
+        card.style.background = "rgba(2, 6, 23, 0.35)";
+        card.style.borderRadius = "16px";
+        card.style.padding = "14px";
+
+        const title = document.createElement("div");
+        title.style.fontWeight = "800";
+        title.style.color = "#e2e8f0";
+        title.textContent = `${idx + 1}. ${String(q.text || "")}`;
+        card.appendChild(title);
+
+        const meta = document.createElement("div");
+        meta.className = "muted small";
+        meta.style.marginTop = "4px";
+        meta.textContent = `id: ${q.id}`;
+        card.appendChild(meta);
+
+        // Fritext: visa bara antal
+        if (q.type === "free_text") {
+          const c = document.createElement("div");
+          c.className = "muted";
+          c.style.marginTop = "10px";
+          const arr = latest.followups?.[q.id];
+          const n = Array.isArray(arr) ? arr.filter((t) => String(t||"").trim()).length : 0;
+          c.textContent = `Fritext ifylld: ${n} st`;
+          card.appendChild(c);
+
+          wrap.appendChild(card);
+          return;
+        }
+
+        // Counts + bars
+        const options = Array.isArray(q.options) ? q.options : [];
+        const counts = getQuestionCounts(latest, q);
+
+        const barCanvas = document.createElement("canvas");
+        barCanvas.setAttribute("aria-label", `Stapeldiagram för ${q.id}`);
+        barCanvas.style.marginTop = "10px";
+        barCanvas.style.width = "100%";
+        barCanvas.style.maxWidth = "720px";
+
+        // Infotext: positiv% + diff
+        const nowP = calcPositivePctForQuestion(latest, q);
+        const prevP = calcPositivePctForQuestion(previous, q);
+
+        const info = document.createElement("div");
+        info.className = "muted";
+        info.style.marginTop = "10px";
+
+        if (Number.isFinite(nowP)) {
+          if (Number.isFinite(prevP)) {
+            info.textContent = `Positiv andel: ${pct(nowP)} • Utveckling: ${pp(nowP - prevP)} (${pct(prevP)} → ${pct(nowP)})`;
+          } else {
+            info.textContent = `Positiv andel: ${pct(nowP)} • Utveckling: —`;
+          }
+        } else {
+          info.textContent = "Positiv andel: — (saknar svar/positiv definition)";
+        }
+
+        card.appendChild(barCanvas);
+        card.appendChild(info);
+
+        // Trendline
+        const trendPoints = buildTrendPointsForQuestion(form.id, q.id, form, measurementsAll);
+
+        const trendCanvas = document.createElement("canvas");
+        trendCanvas.setAttribute("aria-label", `Trendlinje för ${q.id}`);
+        trendCanvas.style.marginTop = "10px";
+        trendCanvas.style.width = "100%";
+        trendCanvas.style.maxWidth = "720px";
+
+        card.appendChild(trendCanvas);
+
+        // Rita efter att canvases finns i DOM
+        // Staplar
+        drawBarCounts(barCanvas, options, counts, {
+          width: Math.min(720, Math.max(520, elReportWrap.clientWidth - 40)),
+          height: 230,
+          title: "Antal per svar"
+        });
+
+        // Trend (bara om det finns minst 2 punkter, annars rita ändå men det blir en punkt)
+        drawTrendLine(trendCanvas, trendPoints, {
+          width: Math.min(720, Math.max(520, elReportWrap.clientWidth - 40)),
+          height: 180,
+          title: "Trend (positiv % över tid)"
+        });
+
+        wrap.appendChild(card);
+      });
+
+      elReportWrap.appendChild(wrap);
+    }
+
+    /* ==========================================================
+       BLOCK 4.6 — Main load routine
+============================================================ */
+
+    function loadReport() {
+      setStatus("info", "Bygger rapport…");
+      clearReportWrap();
+
+      const formRes = getActiveForm();
+      if (!formRes.ok) {
+        setStatus("warn", formRes.error || "Kunde inte läsa aktivt formulär.");
+        renderOverview(null, null, null);
+        return;
+      }
+      if (!formRes.form) {
+        setStatus("warn", "Inget aktivt formulär. Gå till “Formulär” och aktivera först.");
+        renderOverview(null, null, null);
+        return;
+      }
+
+      const form = formRes.form;
+
+      const measRes = listMeasurements();
+      if (!measRes.ok) {
+        setStatus("warn", measRes.error || "Kunde inte läsa mätningar.");
+        renderOverview(form, null, null);
+        return;
+      }
+
+      const latestRes = getLatestMeasurement(form.id);
+      if (!latestRes.ok) {
+        setStatus("warn", latestRes.error || "Kunde inte hitta senaste mätning.");
+        renderOverview(form, null, null);
+        return;
+      }
+
+      const prevRes = getPreviousMeasurement(form.id);
+      if (!prevRes.ok) {
+        setStatus("warn", prevRes.error || "Kunde inte hitta föregående mätning.");
+        renderOverview(form, latestRes.latest, null);
+        return;
+      }
+
+      const latest = latestRes.latest;
+      const previous = prevRes.previous;
+
+      if (!latest) {
+        setStatus("info", "Inga mätningar ännu. Skapa en mätning först.");
+        renderOverview(form, null, null);
+        renderQuestionCards(form, null, null, measRes.measurements);
+        return;
+      }
+
+      setStatus("ok", previous
+        ? `Rapport: senaste ${latest.date} jämfört med ${previous.date}.`
+        : `Rapport: senaste ${latest.date}. (Ingen föregående mätning att jämföra med.)`
+      );
+
+      renderOverview(form, latest, previous);
+      renderQuestionCards(form, latest, previous, measRes.measurements);
+    }
+
+    /* ==========================================================
+       BLOCK 4.7 — Init + Events
+============================================================ */
+
+    elBtnReload.addEventListener("click", loadReport);
+
+    // Auto-load
+    loadReport();
+  </script>
+</body>
+</html>
