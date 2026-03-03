@@ -1,13 +1,15 @@
 <!-- ============================================================
      FIL: pages/measure.html  (HEL FIL)
+     PATCH: HELP-MODAL-01 — Hjälpknapp + modal (Ny mätning)
      PROJEKT: Enkätmätningar — Matlådor (GitHub Pages)
-     VERSION: 0.1.0 (MVP)
+     VERSION: 0.1.1
 
      Syfte:
      - Registrera en mätning: datum + (valfritt) enhet + antal per svar
      - Validera input (fail-closed) innan save
      - Spara i localStorage via storage.js
      - Förbereda för rapport (senaste vs föregående)
+     - NYTT: ❓ Hjälp-knapp + enkel modal med instruktioner
 
      Policy:
      - UI-only
@@ -28,7 +30,7 @@
 
 <body>
   <!-- ==========================================================
-       BLOCK 2 — Toppbar / Navigation
+       BLOCK 2 — Toppbar / Navigation + Hjälp
   =========================================================== -->
   <header class="topbar">
     <div class="topbar__inner">
@@ -42,9 +44,126 @@
         <a class="nav__link" href="../index.html">Start</a>
         <a class="nav__link" href="./forms.html">Formulär</a>
         <a class="nav__link" href="./report.html">Rapport</a>
+
+        <!-- HOOK: help-button -->
+        <button
+          id="helpBtn"
+          class="nav__link"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="helpModal"
+          aria-expanded="false"
+          title="Hjälp"
+          style="cursor:pointer;"
+        >
+          ❓ Hjälp
+        </button>
       </nav>
     </div>
   </header>
+
+  <!-- ==========================================================
+       BLOCK 2.5 — Hjälpmodal (hidden by default)
+       XSS-safe: innehållet är statisk text i HTML.
+  =========================================================== -->
+  <div
+    id="helpModal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="helpTitle"
+    aria-hidden="true"
+    style="display:none;"
+  >
+    <!-- Overlay -->
+    <div
+      id="helpOverlay"
+      style="
+        position:fixed; inset:0;
+        background: rgba(0,0,0,0.55);
+        z-index: 1000;
+      "
+    ></div>
+
+    <!-- Dialog -->
+    <div
+      style="
+        position:fixed;
+        inset: 0;
+        z-index: 1001;
+        display:flex;
+        align-items:flex-start;
+        justify-content:center;
+        padding: 18px;
+        overflow:auto;
+      "
+    >
+      <div
+        class="card"
+        style="
+          width: min(860px, calc(100% - 12px));
+          margin-top: 10vh;
+        "
+      >
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+          <div>
+            <div id="helpTitle" class="h2" style="margin-bottom:6px;">Hjälp: Ny mätning</div>
+            <p class="muted small" style="margin:0;">
+              Syfte: Spara en mätning (datum + antal per svar) så att rapporten kan rita grafer och jämföra mot föregående.
+            </p>
+          </div>
+
+          <button
+            id="helpCloseBtn"
+            class="btn"
+            type="button"
+            aria-label="Stäng hjälp"
+            style="padding:8px 10px;"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style="margin-top: 14px; display:grid; gap: 12px;">
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Gör så här</div>
+            <ol class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li>Klicka <b>“Ladda aktivt formulär”</b>.</li>
+              <li>Välj <b>datum</b> (och fyll i ev. enhet/notering).</li>
+              <li>Fyll i <b>antal</b> per svarsalternativ och klicka <b>“Spara mätning”</b>.</li>
+            </ol>
+          </div>
+
+          <div
+            style="
+              border:1px solid rgba(148,163,184,0.14);
+              background: rgba(2, 6, 23, 0.35);
+              border-radius: 16px;
+              padding: 12px;
+            "
+          >
+            <div style="font-weight:800; color:#e2e8f0;">Vanliga fel</div>
+            <ul class="muted" style="margin:8px 0 0 0; padding-left: 18px;">
+              <li><b>Inget aktivt formulär</b> → gå till “Formulär” och aktivera först.</li>
+              <li><b>Datum saknas</b> → välj ett datum (YYYY-MM-DD).</li>
+              <li><b>Ogiltigt antal</b> → endast heltal (0,1,2…)</li>
+              <li><b>Följdfråga krävs</b> → om du har “Nej” &gt; 0 måste du skriva kort text.</li>
+            </ul>
+          </div>
+
+          <div class="muted small">
+            Tips: Du kan stänga hjälpen med <b>ESC</b> eller genom att klicka utanför rutan.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ==========================================================
        BLOCK 3 — Main
@@ -112,6 +231,39 @@
        BLOCK 4 — Script
   =========================================================== -->
   <script type="module">
+    /* ==========================================================
+       BLOCK 4.0 — Hjälpmodal: open/close (UI-only)
+    =========================================================== */
+    const helpBtn = document.getElementById("helpBtn");
+    const helpModal = document.getElementById("helpModal");
+    const helpOverlay = document.getElementById("helpOverlay");
+    const helpCloseBtn = document.getElementById("helpCloseBtn");
+
+    function openHelp() {
+      if (!helpBtn || !helpModal) return;
+      helpModal.style.display = "block";
+      helpModal.setAttribute("aria-hidden", "false");
+      helpBtn.setAttribute("aria-expanded", "true");
+      if (helpCloseBtn) helpCloseBtn.focus();
+    }
+
+    function closeHelp() {
+      if (!helpBtn || !helpModal) return;
+      helpModal.style.display = "none";
+      helpModal.setAttribute("aria-hidden", "true");
+      helpBtn.setAttribute("aria-expanded", "false");
+      helpBtn.focus();
+    }
+
+    function onHelpKey(e) {
+      if (e.key === "Escape") closeHelp();
+    }
+
+    if (helpBtn) helpBtn.addEventListener("click", openHelp);
+    if (helpCloseBtn) helpCloseBtn.addEventListener("click", closeHelp);
+    if (helpOverlay) helpOverlay.addEventListener("click", closeHelp);
+    document.addEventListener("keydown", onHelpKey);
+
     /* ==========================================================
        BLOCK 4.1 — Imports
     =========================================================== */
@@ -316,7 +468,6 @@
           ta.className = "textarea";
           ta.placeholder = "Skriv kommentarer här (valfritt)…";
           ta.style.marginTop = "10px";
-          // Vi sparar som followups[qid] = [text] (en rad). Kan utökas senare.
           followupInputs[q.id] = ta;
 
           const help = document.createElement("div");
@@ -355,13 +506,11 @@
           inp.min = "0";
           inp.step = "1";
           inp.placeholder = "0";
-          inp.value = "0"; // default 0
+          inp.value = "0";
           inp.setAttribute("inputmode", "numeric");
           inp.setAttribute("aria-label", `Antal för ${String(opt)}`);
 
-          // HOOK: input-change
           inp.addEventListener("input", () => {
-            // En enkel live-validering (snäll): markera rött om fel
             const parsed = parseNonNegativeInt(inp.value);
             inp.style.borderColor = parsed.ok ? "rgba(148, 163, 184, 0.16)" : "rgba(248, 113, 113, 0.8)";
           });
@@ -422,19 +571,15 @@
       activeForm = res.form;
       setStatus("ok", `Formulär laddat: ${String(activeForm.title || activeForm.id)}. Fyll i datum och svar, sen “Spara mätning”.`);
       renderActiveForm(activeForm);
-
-      // Save kan aktiveras nu, men datum måste finnas (valideras på save)
       enableSave(true);
     }
 
     function resetInputs() {
-      // Rensa datum + textfält + alla counts till 0
       elDate.value = "";
       elUnit.value = "";
       elNotes.value = "";
       showDateError(null);
 
-      // counts
       Object.values(answerInputs).forEach((map) => {
         Object.values(map).forEach((inp) => {
           inp.value = "0";
@@ -442,7 +587,6 @@
         });
       });
 
-      // followups
       Object.values(followupInputs).forEach((ta) => {
         ta.value = "";
         ta.style.borderColor = "rgba(148, 163, 184, 0.16)";
@@ -452,7 +596,6 @@
     }
 
     function buildMeasurementPayload() {
-      // Bygger measurement-objektet som storage.js förväntar sig
       const dateKey = normalizeDateValue(elDate.value);
       const unit = (elUnit.value || "").trim();
       const notes = (elNotes.value || "").trim();
@@ -460,7 +603,6 @@
       const answers = {};
       const followups = {};
 
-      // answers: { qid: { optionLabel: count } }
       if (activeForm && Array.isArray(activeForm.questions)) {
         activeForm.questions.forEach((q) => {
           if (!q || typeof q.id !== "string") return;
@@ -481,7 +623,6 @@
           });
           answers[q.id] = out;
 
-          // Followup conditional (om text finns)
           if (q.type === "single_with_followup_text_if") {
             const ta = followupInputs[q.id];
             const txt = (ta?.value || "").trim();
@@ -504,7 +645,6 @@
 
     function saveMeasurement() {
       if (!validateBeforeSave()) {
-        // Summera max 1 rad i status (kort)
         setStatus("warn", `Kan inte spara: ${currentErrors[0]}${currentErrors.length > 1 ? " (fler fel finns)" : ""}`);
         return;
       }
@@ -525,7 +665,6 @@
     =========================================================== */
 
     function init() {
-      // Förval: dagens datum (snabbare), men användaren kan ändra
       const now = new Date();
       const yyyy = String(now.getFullYear());
       const mm = String(now.getMonth() + 1).padStart(2, "0");
