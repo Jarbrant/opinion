@@ -1,1 +1,69 @@
-
+{
+  "id": "matlador_feedback_v1",
+  "title": "Vad tycker du om våra matlådor?",
+  "version": "1.0.0",
+  "meta": {
+    "createdBy": "Anders",
+    "notes": "MVP-formulär. Används för att registrera mätningar med antal per svarsalternativ."
+  },
+  "questions": [
+    {
+      "id": "q1_total",
+      "text": "Hur nöjd är du med maten totalt?",
+      "type": "single",
+      "options": ["Mycket nöjd", "Nöjd", "Missnöjd", "Mycket missnöjd"],
+      "positiveOptions": ["Mycket nöjd", "Nöjd"]
+    },
+    {
+      "id": "q2_taste",
+      "text": "Hur smakar maten?",
+      "type": "single",
+      "options": ["Mycket bra", "Bra", "Mindre bra", "Dålig"],
+      "positiveOptions": ["Mycket bra", "Bra"]
+    },
+    {
+      "id": "q3_portion",
+      "text": "Är portionen lagom stor?",
+      "type": "single",
+      "options": ["Ja", "Nej, för liten", "Nej, för stor"],
+      "positiveOptions": ["Ja"]
+    },
+    {
+      "id": "q4_variety",
+      "text": "Får du tillräcklig variation på maten?",
+      "type": "single_with_followup_text_if",
+      "options": ["Ja", "Nej"],
+      "positiveOptions": ["Ja"],
+      "followup": {
+        "ifOption": "Nej",
+        "label": "Om nej, vad saknar du?"
+      }
+    },
+    {
+      "id": "q5_delivery",
+      "text": "Fungerar leveransen bra?",
+      "type": "single",
+      "options": ["Ja", "Nej"],
+      "positiveOptions": ["Ja"]
+    },
+    {
+      "id": "q5b_safety",
+      "text": "Känner du dig trygg med leveransen?",
+      "type": "single",
+      "options": ["Ja", "Nej"],
+      "positiveOptions": ["Ja"]
+    },
+    {
+      "id": "q6_heating",
+      "text": "Är maten lätt att värma?",
+      "type": "single",
+      "options": ["Ja", "Nej"],
+      "positiveOptions": ["Ja"]
+    },
+    {
+      "id": "q7_comment",
+      "text": "Vill du skriva något mer?",
+      "type": "free_text"
+    }
+  ]
+}
